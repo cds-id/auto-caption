@@ -1,0 +1,9 @@
+openai-whisper==20231117
+click==8.1.7
+moviepy==1.0.3
+tqdm==4.66.1
+numpy==1.24.3
+ffmpeg-python==0.2.0
+srt==3.5.3
+pydub==0.25.1
+rich==13.7.0
