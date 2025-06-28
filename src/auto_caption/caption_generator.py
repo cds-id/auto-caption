@@ -22,6 +22,8 @@ from .utils import (
     extract_audio_from_video,
     clean_text
 )
+from .emotion_detector import EmotionDetector, EmotionDetectionResult
+from .caption_styler import CaptionStyler, StyleIntensity, Platform
 
 
 class CaptionGenerator:
@@ -36,7 +38,10 @@ class CaptionGenerator:
         task: str = "transcribe",
         verbose: bool = False,
         threads: int = 4,
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        enable_emotion_detection: bool = False,
+        emotion_detector: Optional[EmotionDetector] = None,
+        caption_styler: Optional[CaptionStyler] = None
     ):
         """
         Initialize the caption generator.
@@ -55,6 +60,9 @@ class CaptionGenerator:
         self.verbose = verbose
         self.threads = threads
         self.device = device
+        self.enable_emotion_detection = enable_emotion_detection
+        self.emotion_detector = emotion_detector
+        self.caption_styler = caption_styler
         
         # Load Whisper model
         self._load_model()
@@ -81,6 +89,10 @@ class CaptionGenerator:
         video_path: str,
         temperature: float = 0.0,
         progress_callback: Optional[Callable[[float], None]] = None,
+        detect_emotions: bool = False,
+        style_captions: bool = False,
+        style_intensity: Optional[StyleIntensity] = None,
+        platform: Optional[Platform] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -89,12 +101,15 @@ class CaptionGenerator:
         Args:
             video_path: Path to the video file
             temperature: Temperature for sampling
-            no_timestamps: Disable timestamps
             progress_callback: Callback function for progress updates
+            detect_emotions: Whether to detect emotions in the video
+            style_captions: Whether to apply emotion-aware styling
+            style_intensity: Styling intensity (if style_captions is True)
+            platform: Target platform for styling
             **kwargs: Additional arguments for Whisper
             
         Returns:
-            Dictionary containing transcription results
+            Dictionary containing transcription results and optional emotion data
         """
         # Update progress
         if progress_callback:
@@ -145,6 +160,52 @@ class CaptionGenerator:
             # Post-process results
             result = self._post_process_result(result, duration)
             
+            # Detect emotions if requested
+            if detect_emotions or (self.enable_emotion_detection and style_captions):
+                if progress_callback:
+                    progress_callback(92)
+                
+                if self.emotion_detector is None:
+                    self.emotion_detector = EmotionDetector(verbose=self.verbose)
+                
+                emotion_result = self.emotion_detector.detect_emotions(video_path)
+                result["emotion_data"] = emotion_result.to_dict()
+                
+                # Apply emotion-aware styling if requested
+                if style_captions:
+                    if self.caption_styler is None:
+                        self.caption_styler = CaptionStyler(
+                            default_intensity=style_intensity or StyleIntensity.MEDIUM,
+                            default_platform=platform or Platform.GENERAL
+                        )
+                    
+                    # Style each segment
+                    for segment in result["segments"]:
+                        # Find emotion at this timestamp
+                        timestamp = segment.get("start", 0)
+                        segment_emotion = self._find_emotion_at_timestamp(
+                            timestamp,
+                            emotion_result.temporal_emotions
+                        )
+                        
+                        # Apply styling
+                        styled = self.caption_styler.style_caption(
+                            segment["text"],
+                            segment_emotion["emotion"],
+                            segment_emotion["confidence"],
+                            style_intensity,
+                            platform
+                        )
+                        
+                        # Update segment
+                        segment["original_text"] = segment["text"]
+                        segment["text"] = styled["styled_text"]
+                        segment["emotion_metadata"] = {
+                            "emotion": styled["emotion"],
+                            "confidence": styled["confidence"],
+                            "visual_suggestions": styled.get("visual_suggestions", {})
+                        }
+            
             if progress_callback:
                 progress_callback(100)
             
@@ -175,6 +236,27 @@ class CaptionGenerator:
             result["detected_language"] = result["language"]
         
         return result
+    
+    def _find_emotion_at_timestamp(
+        self,
+        timestamp: float,
+        temporal_emotions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Find the emotion at a specific timestamp."""
+        from .emotion_detector import EmotionCategory
+        
+        for temporal in temporal_emotions:
+            if temporal["start"] <= timestamp < temporal["end"]:
+                return {
+                    "emotion": EmotionCategory(temporal["dominant_emotion"]),
+                    "confidence": temporal["confidence"]
+                }
+        
+        # Default to neutral if not found
+        return {
+            "emotion": EmotionCategory.NEUTRAL,
+            "confidence": 0.5
+        }
     
     def save_output(self, result: Dict[str, Any], output_path: str, format: str):
         """
@@ -250,13 +332,19 @@ class CaptionGenerator:
             "task": result.get("task", self.task)
         }
         
+        # Include emotion data if available
+        if "emotion_data" in result:
+            output["emotion_data"] = result["emotion_data"]
+        
         # Include only essential segment information
         for segment in result.get("segments", []):
             output["segments"].append({
                 "id": segment.get("id", 0),
                 "start": segment["start"],
                 "end": segment["end"],
-                "text": segment["text"].strip()
+                "text": segment["text"].strip(),
+                "original_text": segment.get("original_text", segment["text"]).strip(),
+                "emotion_metadata": segment.get("emotion_metadata", None)
             })
         
         with open(output_path, "w", encoding="utf-8") as f:

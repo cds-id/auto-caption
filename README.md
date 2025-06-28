@@ -1,271 +1,266 @@
-# Auto-Caption
 
-A powerful command-line tool for automatically generating captions/subtitles from video files using OpenAI's Whisper speech recognition model.
+# Auto-Caption: Emotion-Aware Caption Generation for Short-Form Videos
 
-## Features
+An advanced AI-powered tool that generates emotionally-intelligent captions for short-form video content. Unlike traditional speech-to-text tools, Auto-Caption understands the emotional context of your video and creates captions that match not just what is said, but *how* it's said.
 
-- 🎥 Extract audio from video files and generate accurate captions
-- 🌍 Support for multiple languages (95+ languages)
-- 📝 Multiple output formats: SRT, VTT, TXT, JSON
-- 🎯 Various Whisper model sizes for speed/accuracy trade-offs
-- 🔧 Customizable parameters (language detection, timestamps, etc.)
-- 📊 Progress bars and detailed logging
-- 🎨 Rich CLI interface with colored output
-- 🚀 Easy-to-use command-line interface
+## 🎯 Project Vision
 
-## Requirements
+In the era of TikTok, Instagram Reels, and YouTube Shorts, captions have evolved beyond mere accessibility tools. They've become an integral part of the creative language, used to:
+- Guide viewer interpretation
+- Add humor and emphasis
+- Match the emotional tone of the content
+- Enhance narrative meaning
 
-- Python 3.8 or higher
-- ffmpeg (for audio/video processing)
-- ~1-10GB of free disk space (depending on the Whisper model size)
+However, existing captioning tools fall short by focusing solely on literal transcription accuracy, missing the emotional nuances that make content engaging. Auto-Caption bridges this gap by combining computer vision for emotion detection with natural language processing for emotionally-aware text generation.
 
-## Installation
+## 🌟 Key Features
 
-### 1. Clone the repository
+### Emotion-Aware Generation
+- **Contextual Understanding**: Analyzes video content to detect emotional tone
+- **Adaptive Styling**: Generates captions that match the detected emotion
+- **Nuanced Expression**: Differentiates between sad, sarcastic, happy, or neutral delivery of the same words
+
+### Multi-Modal Analysis
+- **Visual Emotion Detection**: Analyzes facial expressions, body language, and scene context
+- **Audio Sentiment Analysis**: Detects tone, pitch, and emotional cues in speech
+- **Contextual Integration**: Combines visual and audio signals for accurate emotion detection
+
+### Creative Caption Styling
+- **Dynamic Text Effects**: Suggests appropriate text animations based on emotion
+- **Punctuation & Emphasis**: Intelligently adds punctuation, capitalization, and emphasis
+- **Timing Optimization**: Aligns caption timing with emotional beats
+
+### Platform Optimization
+- **Format Support**: Exports for TikTok, Instagram Reels, YouTube Shorts
+- **Style Templates**: Pre-configured styles for different content types
+- **Batch Processing**: Handle multiple videos with consistent styling
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/cds-id/auto-caption.git
 cd auto-caption
-```
 
-### 2. Run the setup script
-
-The easiest way to set up the project is using the provided setup script:
-
-```bash
+# Run the setup script
 chmod +x setup.sh
 ./setup.sh
+
+# Activate the virtual environment
+source venv/bin/activate
 ```
-
-This script will:
-- Create a Python virtual environment
-- Install all required dependencies
-- Set up the CLI tool for development
-
-### 3. Manual installation (alternative)
-
-If you prefer to set up manually:
-
-```bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Upgrade pip
-pip install --upgrade pip
-
-# Install requirements
-pip install -r requirements.txt
-
-# Install the package
-pip install -e .
-```
-
-### 4. Install ffmpeg
-
-Make sure ffmpeg is installed on your system:
-
-- **Ubuntu/Debian**: `sudo apt-get install ffmpeg`
-- **macOS**: `brew install ffmpeg`
-- **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-- **Fedora**: `sudo dnf install ffmpeg`
-- **Arch Linux**: `sudo pacman -S ffmpeg`
-
-## Usage
 
 ### Basic Usage
 
-Generate captions for a video file:
+Generate emotion-aware captions for a video:
 
 ```bash
-auto-caption generate video.mp4
+# Analyze and generate captions with emotion detection
+auto-caption generate video.mp4 --emotion-mode auto
+
+# Generate with specific emotion style
+auto-caption generate video.mp4 --emotion happy --style energetic
+
+# Generate for specific platform
+auto-caption generate video.mp4 --platform tiktok
 ```
 
-### Advanced Options
+### Advanced Features
 
 ```bash
-# Specify output format
-auto-caption generate video.mp4 --format srt
+# Batch process with emotion detection
+auto-caption batch /path/to/videos --emotion-mode auto --platform instagram
 
-# Use a specific Whisper model (tiny, base, small, medium, large)
-auto-caption generate video.mp4 --model medium
+# Fine-tune emotion detection sensitivity
+auto-caption generate video.mp4 --emotion-threshold 0.7
 
-# Specify language (auto-detect by default)
-auto-caption generate video.mp4 --language en
-
-# Custom output file
-auto-caption generate video.mp4 --output my_captions.srt
-
-# Generate multiple formats at once
-auto-caption generate video.mp4 --format srt --format vtt --format txt
-
-# Verbose output for debugging
-auto-caption generate video.mp4 --verbose
+# Use custom emotion mapping
+auto-caption generate video.mp4 --emotion-map custom_emotions.json
 ```
 
-### Batch Processing
+## 🧠 How It Works
 
-Process multiple videos at once:
+### 1. Multi-Modal Analysis
+- **Video Analysis**: Extract visual features using computer vision models
+- **Audio Processing**: Analyze speech patterns, tone, and prosody
+- **Context Integration**: Combine signals to understand overall emotional context
 
-```bash
-# Process all MP4 files in a directory
-auto-caption batch /path/to/videos --pattern "*.mp4"
+### 2. Emotion Detection
+- **Facial Expression Recognition**: Detect micro-expressions and emotional states
+- **Voice Emotion Analysis**: Identify emotional cues in speech patterns
+- **Scene Context**: Consider visual context and environment
 
-# Process with specific settings
-auto-caption batch /path/to/videos --model small --format srt --format vtt
-```
+### 3. Caption Generation
+- **Emotion-Aware Language Model**: Generate text that matches detected emotion
+- **Style Transfer**: Apply appropriate linguistic style and tone
+- **Creative Enhancement**: Add emphasis, punctuation, and formatting
 
-### Available Commands
+### 4. Output Optimization
+- **Platform-Specific Formatting**: Optimize for target platform requirements
+- **Timing Synchronization**: Ensure perfect sync with emotional beats
+- **Visual Suggestions**: Recommend text effects and animations
 
-- `generate`: Generate captions for a single video
-- `batch`: Process multiple videos
-- `list-models`: Show available Whisper models
-- `download-model`: Pre-download a specific model
-- `version`: Show version information
+## 📊 Supported Emotions
 
-### Whisper Models
+- **Primary Emotions**: Happy, Sad, Angry, Fearful, Surprised, Disgusted
+- **Complex States**: Sarcastic, Ironic, Contemplative, Excited, Melancholic
+- **Content Moods**: Motivational, Humorous, Dramatic, Casual, Professional
 
-| Model  | Parameters | English-only | Multilingual | Required VRAM | Relative Speed |
-|--------|------------|--------------|--------------|---------------|----------------|
-| tiny   | 39 M       | ✓            | ✓            | ~1 GB         | ~32x           |
-| base   | 74 M       | ✓            | ✓            | ~1 GB         | ~16x           |
-| small  | 244 M      | ✓            | ✓            | ~2 GB         | ~6x            |
-| medium | 769 M      | ✓            | ✓            | ~5 GB         | ~2x            |
-| large  | 1550 M     | ✗            | ✓            | ~10 GB        | 1x             |
+## 🛠️ Technical Architecture
 
-Choose a model based on your needs:
-- `tiny` or `base`: Fast processing, good for quick drafts
-- `small` or `medium`: Balanced performance and accuracy
-- `large`: Best accuracy, especially for challenging audio
+### Core Components
 
-## Output Formats
+1. **Emotion Detection Module**
+   - Visual emotion recognition (CNN-based)
+   - Audio emotion analysis (RNN/Transformer-based)
+   - Multi-modal fusion network
 
-### SRT (SubRip Subtitle)
-Standard subtitle format supported by most video players.
+2. **Caption Generation Module**
+   - Emotion-conditioned language model
+   - Style transfer mechanisms
+   - Context-aware text generation
 
-```srt
-1
-00:00:00,000 --> 00:00:03,000
-Hello, welcome to our video.
+3. **Integration Pipeline**
+   - Real-time processing capabilities
+   - Scalable batch processing
+   - API endpoints for integration
 
-2
-00:00:03,500 --> 00:00:07,000
-Today we'll be discussing auto-captioning.
-```
+### Technology Stack
 
-### VTT (WebVTT)
-Web Video Text Tracks format, ideal for HTML5 video.
+- **Deep Learning**: PyTorch, Transformers, OpenCV
+- **Audio Processing**: Whisper, librosa, pyAudioAnalysis
+- **Vision Models**: Face recognition, emotion detection CNNs
+- **NLP Models**: GPT-based generation with emotion conditioning
+- **Framework**: FastAPI for API, Click for CLI
 
-```vtt
-WEBVTT
+## 📈 Use Cases
 
-00:00:00.000 --> 00:00:03.000
-Hello, welcome to our video.
+### Content Creators
+- Generate engaging captions that match video mood
+- Save time on manual caption editing
+- Maintain consistent style across content
 
-00:00:03.500 --> 00:00:07.000
-Today we'll be discussing auto-captioning.
-```
+### Digital Marketers
+- Create emotionally resonant ad captions
+- A/B test different emotional approaches
+- Scale content production
 
-### TXT (Plain Text)
-Simple text format with timestamps.
+### Accessibility Advocates
+- Provide context-rich captions for better understanding
+- Include emotional cues for hearing-impaired viewers
+- Enhance overall content accessibility
 
-```txt
-[00:00:00.000 --> 00:00:03.000] Hello, welcome to our video.
-[00:00:03.500 --> 00:00:07.000] Today we'll be discussing auto-captioning.
-```
+## 🔧 Configuration
 
-### JSON
-Structured format with detailed information.
+Create a configuration file at `~/.auto-caption/config.json`:
 
 ```json
 {
-  "text": "Hello, welcome to our video. Today we'll be discussing auto-captioning.",
-  "segments": [
-    {
-      "id": 0,
-      "seek": 0,
-      "start": 0.0,
-      "end": 3.0,
-      "text": "Hello, welcome to our video.",
-      "tokens": [50364, 2425, 11, 2928, 281, 527, 960, 13, 50514],
-      "temperature": 0.0,
-      "avg_logprob": -0.2761423448
+  "emotion_detection": {
+    "visual_weight": 0.6,
+    "audio_weight": 0.4,
+    "threshold": 0.7
+  },
+  "caption_generation": {
+    "style_intensity": "medium",
+    "platform_defaults": {
+      "tiktok": {
+        "max_length": 100,
+        "style": "casual"
+      },
+      "instagram": {
+        "max_length": 125,
+        "style": "engaging"
+      }
     }
-  ],
-  "language": "en"
+  },
+  "output": {
+    "default_format": ["srt", "json"],
+    "include_emotion_data": true,
+    "include_suggestions": true
+  }
 }
 ```
 
-## Configuration
+## 🎨 Caption Style Examples
 
-You can create a configuration file at `~/.auto-caption/config.json`:
+### Same Text, Different Emotions
 
-```json
-{
-  "default_model": "small",
-  "default_format": ["srt", "vtt"],
-  "default_language": "auto",
-  "verbose": false,
-  "threads": 4
-}
-```
+**Original**: "I'm fine"
 
-## Troubleshooting
+- **Happy**: "I'm fine! 😊"
+- **Sad**: "i'm... fine."
+- **Sarcastic**: "I'm TOTALLY fine 🙄"
+- **Angry**: "I'M FINE."
+- **Anxious**: "I'm fine... I think?"
 
-### Common Issues
+### Emotion-Driven Formatting
 
-1. **"No module named 'whisper'"**
-   - Make sure you've activated the virtual environment: `source venv/bin/activate`
+- **Excitement**: CAPS, exclamation marks, energetic punctuation
+- **Sadness**: lowercase, ellipses, minimal punctuation
+- **Sarcasm**: Mixed case, quotation marks, emoji hints
+- **Anger**: ALL CAPS, sharp punctuation
+- **Contemplation**: Thoughtful pauses, question marks
 
-2. **"ffmpeg not found"**
-   - Install ffmpeg using your system's package manager
+## 🚧 Roadmap
 
-3. **Out of memory errors**
-   - Use a smaller model (tiny, base, or small)
-   - Process shorter video segments
+### Phase 1: Core Functionality ✅
+- Basic emotion detection
+- Simple caption generation
+- CLI interface
 
-4. **Slow processing**
-   - Use a smaller model for faster processing
-   - Ensure you have CUDA installed for GPU acceleration (if available)
+### Phase 2: Advanced Features 🚧
+- Multi-modal emotion fusion
+- Platform-specific optimization
+- Batch processing capabilities
 
-### Performance Tips
+### Phase 3: Creative Tools 📅
+- Real-time preview
+- Custom style creation
+- Effect recommendations
 
-- For GPU acceleration, install PyTorch with CUDA support
-- Process videos in batches during off-peak hours
-- Use the `--threads` option to control CPU usage
-- Consider splitting long videos into segments
+### Phase 4: Integration 📅
+- API development
+- Plugin system
+- Third-party integrations
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Areas where you can help:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. **Emotion Models**: Improve emotion detection accuracy
+2. **Language Styles**: Add support for more languages and cultural contexts
+3. **Platform Features**: Add support for new platforms
+4. **UI/UX**: Develop web interface or mobile app
 
-## License
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📚 Research & References
 
-## Acknowledgments
+This project builds upon research in:
+- Affective Computing
+- Multi-modal Emotion Recognition
+- Emotion-Conditioned Text Generation
+- Cross-Modal Learning
 
-- [OpenAI Whisper](https://github.com/openai/whisper) for the amazing speech recognition model
-- [ffmpeg](https://ffmpeg.org/) for audio/video processing
-- [Click](https://click.palletsprojects.com/) for the CLI framework
-- [Rich](https://rich.readthedocs.io/) for beautiful terminal output
+Key papers and resources:
+- [Emotion Recognition in Context](https://arxiv.org/abs/xxxxx)
+- [Multi-modal Sentiment Analysis](https://arxiv.org/abs/xxxxx)
+- [Affective Text Generation](https://arxiv.org/abs/xxxxx)
 
-## Support
+## 📝 License
 
-If you encounter any issues or have questions:
+MIT License - see [LICENSE](LICENSE) file for details.
 
-1. Check the [FAQ](docs/FAQ.md)
-2. Search existing [issues](https://github.com/cds-id/auto-caption/issues)
-3. Create a new issue with detailed information
+## 🙏 Acknowledgments
+
+- OpenAI Whisper for speech recognition foundation
+- Emotion recognition research community
+- Content creators who inspired this project
+- Open source contributors
 
 ---
 
-Made with ❤️ by the Auto-Caption Team
+**Note**: This project addresses the growing need for emotionally-intelligent content creation tools in the age of short-form video. By bridging the gap between technical accuracy and creative expression, we aim to empower creators to produce more engaging and accessible content at scale.

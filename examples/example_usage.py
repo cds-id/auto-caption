@@ -13,7 +13,11 @@ from pathlib import Path
 # Add the src directory to the Python path for development
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from auto_caption import CaptionGenerator, WhisperModel, get_available_models
+from auto_caption import (
+    CaptionGenerator, WhisperModel, get_available_models,
+    EmotionDetector, EmotionCategory,
+    CaptionStyler, StyleIntensity, Platform
+)
 from auto_caption.utils import get_video_info, format_duration, format_size
 
 
@@ -250,8 +254,7 @@ def example_custom_settings():
         # Generate with custom parameters
         result = generator.generate(
             video_path,
-            temperature=0.2,  # Slightly more creative
-            no_timestamps=False
+            temperature=0.2  # Slightly more creative
         )
         
         # Save with custom processing
@@ -269,18 +272,148 @@ def example_custom_settings():
         print(f"Error: {e}")
 
 
+def example_emotion_detection():
+    """Detect emotions in a video."""
+    print("\n=== Emotion Detection Example ===\n")
+    
+    video_path = "sample_video.mp4"
+    if not os.path.exists(video_path):
+        print(f"Video file '{video_path}' not found.")
+        return
+    
+    try:
+        # Initialize emotion detector
+        detector = EmotionDetector(verbose=True)
+        
+        print("Analyzing emotions in video...")
+        result = detector.detect_emotions(video_path)
+        
+        print(f"\nDominant emotion: {result.dominant_emotion.value}")
+        print(f"Confidence: {result.emotion_scores[0].confidence:.2%}")
+        
+        print("\nTop 3 detected emotions:")
+        for i, score in enumerate(result.emotion_scores[:3], 1):
+            print(f"  {i}. {score.emotion.value}: {score.confidence:.2%}")
+        
+        # Show temporal emotions
+        print("\nEmotion timeline:")
+        for segment in result.temporal_emotions[:5]:
+            print(f"  {segment['start']:.1f}s - {segment['end']:.1f}s: {segment['dominant_emotion']}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def example_emotion_aware_captions():
+    """Generate emotion-aware styled captions."""
+    print("\n=== Emotion-Aware Caption Generation ===\n")
+    
+    video_path = "sample_video.mp4"
+    if not os.path.exists(video_path):
+        print(f"Video file '{video_path}' not found.")
+        return
+    
+    try:
+        # First, detect emotions
+        detector = EmotionDetector()
+        emotion_result = detector.detect_emotions(video_path)
+        
+        # Generate base captions
+        generator = CaptionGenerator(model_name="base")
+        caption_result = generator.generate(video_path)
+        
+        # Apply emotion-aware styling
+        styler = CaptionStyler(
+            default_intensity=StyleIntensity.MEDIUM,
+            default_platform=Platform.TIKTOK
+        )
+        
+        print(f"Detected emotion: {emotion_result.dominant_emotion.value}")
+        print("\nOriginal vs Styled Captions:")
+        
+        for segment in caption_result['segments'][:3]:
+            original_text = segment['text']
+            
+            # Style the caption based on emotion
+            styled = styler.style_caption(
+                original_text,
+                emotion_result.dominant_emotion,
+                emotion_result.emotion_scores[0].confidence
+            )
+            
+            print(f"\nOriginal: {original_text}")
+            print(f"Styled:   {styled['styled_text']}")
+            
+            # Show visual suggestions
+            if 'visual_suggestions' in styled:
+                suggestions = styled['visual_suggestions']
+                if suggestions.get('text_animation'):
+                    print(f"  Suggested animation: {suggestions['text_animation'][0]}")
+                if suggestions.get('color_scheme'):
+                    print(f"  Primary color: {suggestions['color_scheme'].get('primary')}")
+        
+        # Save styled result
+        output_path = "captions_emotion_styled.srt"
+        generator.save_output(caption_result, output_path, "srt")
+        print(f"\n✓ Styled captions saved to: {output_path}")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def example_platform_specific():
+    """Generate platform-specific emotion-aware captions."""
+    print("\n=== Platform-Specific Caption Styling ===\n")
+    
+    video_path = "sample_video.mp4"
+    if not os.path.exists(video_path):
+        print(f"Video file '{video_path}' not found.")
+        return
+    
+    try:
+        # Detect emotions
+        detector = EmotionDetector()
+        emotion_result = detector.detect_emotions(video_path)
+        
+        # Generate base captions
+        generator = CaptionGenerator(model_name="base")
+        caption_result = generator.generate(video_path)
+        
+        # Test different platforms
+        platforms = [Platform.TIKTOK, Platform.INSTAGRAM, Platform.YOUTUBE_SHORTS]
+        sample_text = caption_result['segments'][0]['text'] if caption_result['segments'] else "Sample caption text"
+        
+        for platform in platforms:
+            styler = CaptionStyler(default_platform=platform)
+            styled = styler.style_caption(
+                sample_text,
+                emotion_result.dominant_emotion,
+                emotion_result.emotion_scores[0].confidence
+            )
+            
+            print(f"\n{platform.value.upper()}:")
+            print(f"  {styled['styled_text']}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 def example_cli_commands():
     """Show example CLI commands."""
     print("\n=== CLI Command Examples ===\n")
     
     commands = [
         ("Basic usage", "auto-caption generate video.mp4"),
+        ("Emotion-aware generation", "auto-caption generate video.mp4 --emotion-mode auto"),
+        ("Manual emotion override", "auto-caption generate video.mp4 --emotion-mode manual --emotion happy"),
+        ("Platform-specific", "auto-caption generate video.mp4 --platform tiktok --emotion-mode auto"),
+        ("Analyze emotions only", "auto-caption analyze-emotion video.mp4 --output emotions.json"),
+        ("Batch with emotions", "auto-caption batch /path/to/videos --emotion-mode auto --platform instagram"),
+        ("Download emotion models", "auto-caption download-models --type emotion"),
         ("Specify output format", "auto-caption generate video.mp4 --format srt --format vtt"),
         ("Use specific model", "auto-caption generate video.mp4 --model medium"),
         ("Specify language", "auto-caption generate video.mp4 --language en"),
-        ("Batch processing", "auto-caption batch /path/to/videos --pattern '*.mp4'"),
         ("List available models", "auto-caption list-models"),
-        ("Download model", "auto-caption download-model large"),
         ("Show version", "auto-caption version"),
         ("Configure defaults", "auto-caption config --set default_model small"),
     ]
@@ -307,6 +440,9 @@ def main():
         example_multiple_formats,
         example_different_models,
         example_language_specific,
+        example_emotion_detection,
+        example_emotion_aware_captions,
+        example_platform_specific,
         example_batch_processing,
         example_video_info,
         example_custom_settings,

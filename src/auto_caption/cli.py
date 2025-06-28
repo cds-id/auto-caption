@@ -20,6 +20,8 @@ from . import __version__
 from .caption_generator import CaptionGenerator
 from .models import WhisperModel, get_available_models
 from .utils import validate_video_file, get_output_filename, load_config, save_config
+from .emotion_detector import EmotionDetector, EmotionCategory
+from .caption_styler import CaptionStyler, StyleIntensity, Platform
 
 console = Console()
 
@@ -68,10 +70,19 @@ def cli(ctx, config):
               help='Temperature for sampling (0.0 = deterministic)')
 @click.option('--threads', type=int, default=None,
               help='Number of threads to use')
+@click.option('--emotion-mode', type=click.Choice(['auto', 'manual', 'off']),
+              default='off', help='Emotion detection mode')
+@click.option('--emotion', type=click.Choice(['happy', 'sad', 'angry', 'sarcastic', 
+              'anxious', 'neutral', 'excited', 'contemplative']),
+              help='Manual emotion override (requires --emotion-mode manual)')
+@click.option('--style-intensity', type=click.Choice(['subtle', 'medium', 'intense']),
+              default='medium', help='Caption styling intensity')
+@click.option('--platform', type=click.Choice(['tiktok', 'instagram', 'youtube_shorts', 'general']),
+              default='general', help='Target platform for optimization')
 @click.pass_context
 def generate(ctx, video_file, model, format, output, language, task, verbose,
-             temperature, threads):
-    """Generate captions for a single video file."""
+             temperature, threads, emotion_mode, emotion, style_intensity, platform):
+    """Generate captions for a single video file with optional emotion-aware styling."""
     config = ctx.obj.get('config', {})
     
     # Use defaults from config if not specified
@@ -92,8 +103,9 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
     console.print(Panel.fit(
         f"[bold cyan]Processing:[/bold cyan] {video_file}\n"
         f"[bold]Model:[/bold] {model} | [bold]Language:[/bold] {language} | "
-        f"[bold]Format(s):[/bold] {', '.join(format)}",
-        title="Auto-Caption"
+        f"[bold]Format(s):[/bold] {', '.join(format)}\n"
+        f"[bold]Emotion Mode:[/bold] {emotion_mode} | [bold]Platform:[/bold] {platform}",
+        title="Auto-Caption: Emotion-Aware Generation"
     ))
     
     try:
@@ -109,6 +121,27 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
         
         # Generate captions
         console.print("[green]✓[/green] Model loaded successfully")
+        
+        # Initialize emotion detector if needed
+        emotion_result = None
+        if emotion_mode != 'off':
+            console.print("[yellow]Initializing emotion detection...[/yellow]")
+            emotion_detector = EmotionDetector(verbose=verbose)
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeRemainingColumn(),
+                console=console
+            ) as progress:
+                task_id = progress.add_task("Detecting emotions...", total=100)
+                emotion_result = emotion_detector.detect_emotions(
+                    video_file,
+                    progress_callback=lambda p: progress.update(task_id, completed=p)
+                )
+            console.print(f"[green]✓[/green] Dominant emotion: {emotion_result.dominant_emotion.value}")
         
         with Progress(
             SpinnerColumn(),
@@ -127,6 +160,43 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
             )
         
         console.print("[green]✓[/green] Caption generation complete")
+        
+        # Apply emotion-aware styling if enabled
+        if emotion_mode != 'off' and emotion_result:
+            console.print("[yellow]Applying emotion-aware styling...[/yellow]")
+            styler = CaptionStyler(
+                default_intensity=StyleIntensity(style_intensity),
+                default_platform=Platform(platform)
+            )
+            
+            # Override emotion if manual mode
+            if emotion_mode == 'manual' and emotion:
+                selected_emotion = EmotionCategory(emotion)
+            else:
+                selected_emotion = emotion_result.dominant_emotion
+            
+            # Style all segments
+            styled_segments = []
+            for segment in result['segments']:
+                styled = styler.style_caption(
+                    segment['text'],
+                    selected_emotion,
+                    emotion_result.emotion_scores[0].confidence if emotion_result else 0.9,
+                    StyleIntensity(style_intensity),
+                    Platform(platform)
+                )
+                segment['original_text'] = segment['text']
+                segment['text'] = styled['styled_text']
+                segment['emotion_metadata'] = {
+                    'emotion': styled['emotion'],
+                    'confidence': styled['confidence'],
+                    'visual_suggestions': styled.get('visual_suggestions', {})
+                }
+                styled_segments.append(segment)
+            
+            result['segments'] = styled_segments
+            result['emotion_data'] = emotion_result.to_dict() if emotion_result else None
+            console.print("[green]✓[/green] Emotion-aware styling applied")
         
         # Save outputs
         saved_files = []
@@ -172,10 +242,16 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
               help='Skip videos that already have captions')
 @click.option('--threads', type=int, default=None,
               help='Number of threads to use')
+@click.option('--emotion-mode', type=click.Choice(['auto', 'off']),
+              default='off', help='Enable emotion detection for all videos')
+@click.option('--style-intensity', type=click.Choice(['subtle', 'medium', 'intense']),
+              default='medium', help='Caption styling intensity')
+@click.option('--platform', type=click.Choice(['tiktok', 'instagram', 'youtube_shorts', 'general']),
+              default='general', help='Target platform for optimization')
 @click.pass_context
 def batch(ctx, directory, pattern, model, format, language, recursive, 
-          skip_existing, threads):
-    """Process multiple video files in batch."""
+          skip_existing, threads, emotion_mode, style_intensity, platform):
+    """Process multiple video files in batch with optional emotion detection."""
     config = ctx.obj.get('config', {})
     
     # Use defaults from config
@@ -315,13 +391,96 @@ def download_model(model_name):
         sys.exit(1)
 
 
+@cli.command('download-models')
+@click.option('--type', type=click.Choice(['emotion', 'all']), 
+              default='all', help='Type of models to download')
+def download_models(type):
+    """Download emotion detection models."""
+    console.print(f"[bold]Downloading {type} models...[/bold]")
+    
+    try:
+        if type in ['emotion', 'all']:
+            console.print("[yellow]Downloading emotion detection models...[/yellow]")
+            # This will trigger model downloads on first use
+            detector = EmotionDetector(verbose=True)
+            console.print("[green]✓[/green] Emotion models ready")
+        
+        console.print(f"[green]✓[/green] All {type} models downloaded successfully")
+        
+    except Exception as e:
+        console.print(f"[red]Error downloading models:[/red] {str(e)}")
+        sys.exit(1)
+
+
+@cli.command('analyze-emotion')
+@click.argument('video_file', type=click.Path(exists=True))
+@click.option('--output', '-o', type=click.Path(),
+              help='Save emotion analysis to JSON file')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def analyze_emotion(video_file, output, verbose):
+    """Analyze emotions in a video without generating captions."""
+    if not validate_video_file(video_file):
+        console.print(f"[red]Error:[/red] '{video_file}' is not a valid video file")
+        sys.exit(1)
+    
+    console.print(Panel.fit(
+        f"[bold cyan]Analyzing emotions in:[/bold cyan] {video_file}",
+        title="Emotion Analysis"
+    ))
+    
+    try:
+        detector = EmotionDetector(verbose=verbose)
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeRemainingColumn(),
+            console=console
+        ) as progress:
+            task_id = progress.add_task("Analyzing emotions...", total=100)
+            result = detector.detect_emotions(
+                video_file,
+                progress_callback=lambda p: progress.update(task_id, completed=p)
+            )
+        
+        # Display results
+        table = Table(title="Emotion Analysis Results", show_header=True)
+        table.add_column("Emotion", style="cyan")
+        table.add_column("Confidence", justify="right")
+        table.add_column("Modality", justify="center")
+        
+        for score in result.emotion_scores[:5]:  # Top 5 emotions
+            table.add_row(
+                score.emotion.value,
+                f"{score.confidence:.2%}",
+                score.modality or "combined"
+            )
+        
+        console.print(table)
+        console.print(f"\n[bold]Dominant Emotion:[/bold] {result.dominant_emotion.value}")
+        
+        # Save if requested
+        if output:
+            with open(output, 'w') as f:
+                json.dump(result.to_dict(), f, indent=2)
+            console.print(f"[green]✓[/green] Analysis saved to: {output}")
+        
+    except Exception as e:
+        console.print(f"[red]Error analyzing emotions:[/red] {str(e)}")
+        if verbose:
+            console.print_exception()
+        sys.exit(1)
+
+
 @cli.command()
 def version():
     """Display version information."""
     console.print(Panel.fit(
         f"[bold cyan]Auto-Caption[/bold cyan] v{__version__}\n"
-        f"Automatic video captioning using OpenAI Whisper\n\n"
-        f"[dim]Python {sys.version.split()[0]} | Click | Whisper | Rich[/dim]",
+        f"Emotion-aware video captioning for short-form content\n\n"
+        f"[dim]Python {sys.version.split()[0]} | Click | Whisper | Transformers | Rich[/dim]",
         title="Version Info"
     ))
 
