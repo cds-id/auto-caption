@@ -14,6 +14,7 @@ from .utils import format_timestamp, parse_time
 from .models import WhisperModel, get_available_models
 from .emotion_detector import EmotionDetector, EmotionCategory, EmotionScore, EmotionDetectionResult
 from .caption_styler import CaptionStyler, StyleIntensity, Platform, EmotionStyleMap
+from .video_merger import VideoMerger
 
 __all__ = [
     "CaptionGenerator",
@@ -29,6 +30,7 @@ __all__ = [
     "StyleIntensity",
     "Platform",
     "EmotionStyleMap",
+    "VideoMerger",
     "__version__",
     "__author__",
     "__email__",

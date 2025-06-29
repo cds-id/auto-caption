@@ -612,6 +612,258 @@ class CaptionStyler:
                     "appear_speed": "medium",
                     "emphasis_delay": 0.3
                 }
+            },
+            EmotionCategory.NEUTRAL: {
+                "text_animation": ["fade", "slide", "appear"],
+                "color_scheme": {
+                    "primary": "#333333",  # Dark gray
+                    "secondary": "#666666",  # Medium gray
+                    "background": "#FFFFFF"  # White
+                },
+                "font_style": "regular, clean",
+                "effects": ["simple", "clean", "minimal"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.4
+                }
+            },
+            EmotionCategory.FEARFUL: {
+                "text_animation": ["tremble", "shake", "flicker"],
+                "color_scheme": {
+                    "primary": "#483D8B",  # Dark slate blue
+                    "secondary": "#191970",  # Midnight blue
+                    "background": "#F0F8FF"  # Alice blue
+                },
+                "font_style": "thin, shaky",
+                "effects": ["shadow", "dark", "pulse"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.6
+                }
+            },
+            EmotionCategory.SURPRISED: {
+                "text_animation": ["pop", "bounce", "expand"],
+                "color_scheme": {
+                    "primary": "#FF69B4",  # Hot pink
+                    "secondary": "#FFD700",  # Gold
+                    "background": "#FFFAF0"  # Floral white
+                },
+                "font_style": "bold, expanded",
+                "effects": ["burst", "sparkle", "zoom"],
+                "timing_adjustments": {
+                    "appear_speed": "instant",
+                    "emphasis_delay": 0.1
+                }
+            },
+            EmotionCategory.DISGUSTED: {
+                "text_animation": ["wobble", "distort", "squeeze"],
+                "color_scheme": {
+                    "primary": "#556B2F",  # Dark olive green
+                    "secondary": "#8B4513",  # Saddle brown
+                    "background": "#F5F5DC"  # Beige
+                },
+                "font_style": "distorted, wavy",
+                "effects": ["distort", "blur", "wave"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.4
+                }
+            },
+            EmotionCategory.EXCITED: {
+                "text_animation": ["bounce", "vibrate", "sparkle"],
+                "color_scheme": {
+                    "primary": "#FF4500",  # Orange red
+                    "secondary": "#FFA500",  # Orange
+                    "background": "#FFF8DC"  # Cornsilk
+                },
+                "font_style": "bold, energetic",
+                "effects": ["electricity", "stars", "fireworks"],
+                "timing_adjustments": {
+                    "appear_speed": "fast",
+                    "emphasis_delay": 0.1
+                }
+            },
+            EmotionCategory.MELANCHOLIC: {
+                "text_animation": ["fade", "drift", "dissolve"],
+                "color_scheme": {
+                    "primary": "#4B0082",  # Indigo
+                    "secondary": "#483D8B",  # Dark slate blue
+                    "background": "#E6E6FA"  # Lavender
+                },
+                "font_style": "light, flowing",
+                "effects": ["mist", "fade", "soft"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.7
+                }
+            },
+            EmotionCategory.ANXIOUS: {
+                "text_animation": ["jitter", "shake", "pulse"],
+                "color_scheme": {
+                    "primary": "#8B0000",  # Dark red
+                    "secondary": "#B22222",  # Fire brick
+                    "background": "#FFE4E1"  # Misty rose
+                },
+                "font_style": "tight, condensed",
+                "effects": ["pulse", "shake", "glitch"],
+                "timing_adjustments": {
+                    "appear_speed": "fast",
+                    "emphasis_delay": 0.2
+                }
+            },
+            EmotionCategory.CONFIDENT: {
+                "text_animation": ["slide", "bold", "strong"],
+                "color_scheme": {
+                    "primary": "#000080",  # Navy
+                    "secondary": "#4169E1",  # Royal blue
+                    "background": "#F0FFFF"  # Azure
+                },
+                "font_style": "bold, strong",
+                "effects": ["shine", "glow", "solid"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.3
+                }
+            },
+            EmotionCategory.CONFUSED: {
+                "text_animation": ["wobble", "tilt", "spin"],
+                "color_scheme": {
+                    "primary": "#696969",  # Dim gray
+                    "secondary": "#A9A9A9",  # Dark gray
+                    "background": "#F5F5F5"  # White smoke
+                },
+                "font_style": "irregular, mixed",
+                "effects": ["question", "swirl", "dizzy"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.5
+                }
+            },
+            EmotionCategory.MOTIVATIONAL: {
+                "text_animation": ["rise", "strong", "impact"],
+                "color_scheme": {
+                    "primary": "#FF6347",  # Tomato
+                    "secondary": "#FF8C00",  # Dark orange
+                    "background": "#FFFACD"  # Lemon chiffon
+                },
+                "font_style": "bold, impactful",
+                "effects": ["power", "rise", "impact"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.3
+                }
+            },
+            EmotionCategory.HUMOROUS: {
+                "text_animation": ["bounce", "wiggle", "playful"],
+                "color_scheme": {
+                    "primary": "#FF1493",  # Deep pink
+                    "secondary": "#00CED1",  # Dark turquoise
+                    "background": "#F0E68C"  # Khaki
+                },
+                "font_style": "playful, rounded",
+                "effects": ["bounce", "wiggle", "comic"],
+                "timing_adjustments": {
+                    "appear_speed": "fast",
+                    "emphasis_delay": 0.2
+                }
+            },
+            EmotionCategory.DRAMATIC: {
+                "text_animation": ["slam", "dramatic", "sweep"],
+                "color_scheme": {
+                    "primary": "#8B008B",  # Dark magenta
+                    "secondary": "#4B0082",  # Indigo
+                    "background": "#2F2F4F"  # Midnight blue
+                },
+                "font_style": "dramatic, serif",
+                "effects": ["spotlight", "dramatic", "sweep"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.5
+                }
+            },
+            EmotionCategory.CASUAL: {
+                "text_animation": ["slide", "easy", "smooth"],
+                "color_scheme": {
+                    "primary": "#708090",  # Slate gray
+                    "secondary": "#778899",  # Light slate gray
+                    "background": "#F8F8FF"  # Ghost white
+                },
+                "font_style": "casual, relaxed",
+                "effects": ["smooth", "easy", "light"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.4
+                }
+            },
+            EmotionCategory.PROFESSIONAL: {
+                "text_animation": ["fade", "clean", "precise"],
+                "color_scheme": {
+                    "primary": "#2F4F4F",  # Dark slate gray
+                    "secondary": "#000080",  # Navy
+                    "background": "#FFFFFF"  # White
+                },
+                "font_style": "professional, serif",
+                "effects": ["clean", "minimal", "professional"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.3
+                }
+            },
+            EmotionCategory.ROMANTIC: {
+                "text_animation": ["float", "soft", "heart"],
+                "color_scheme": {
+                    "primary": "#C71585",  # Medium violet red
+                    "secondary": "#FF69B4",  # Hot pink
+                    "background": "#FFE4E1"  # Misty rose
+                },
+                "font_style": "elegant, flowing",
+                "effects": ["hearts", "soft", "glow"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.6
+                }
+            },
+            EmotionCategory.NOSTALGIC: {
+                "text_animation": ["fade", "vintage", "soft"],
+                "color_scheme": {
+                    "primary": "#8B4513",  # Saddle brown
+                    "secondary": "#DEB887",  # Burlywood
+                    "background": "#FDF5E6"  # Old lace
+                },
+                "font_style": "vintage, serif",
+                "effects": ["sepia", "vintage", "soft"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.7
+                }
+            },
+            EmotionCategory.IRONIC: {
+                "text_animation": ["tilt", "reverse", "twist"],
+                "color_scheme": {
+                    "primary": "#483D8B",  # Dark slate blue
+                    "secondary": "#6A5ACD",  # Slate blue
+                    "background": "#F8F8FF"  # Ghost white
+                },
+                "font_style": "italic, contrasting",
+                "effects": ["reverse", "twist", "ironic"],
+                "timing_adjustments": {
+                    "appear_speed": "medium",
+                    "emphasis_delay": 0.4
+                }
+            },
+            EmotionCategory.CONTEMPLATIVE: {
+                "text_animation": ["fade", "gentle", "thoughtful"],
+                "color_scheme": {
+                    "primary": "#4682B4",  # Steel blue
+                    "secondary": "#5F9EA0",  # Cadet blue
+                    "background": "#F0FFFF"  # Azure
+                },
+                "font_style": "thoughtful, light",
+                "effects": ["gentle", "thoughtful", "calm"],
+                "timing_adjustments": {
+                    "appear_speed": "slow",
+                    "emphasis_delay": 0.6
+                }
             }
         }
         
@@ -696,8 +948,18 @@ class CaptionStyler:
         """Find the emotion at a specific timestamp."""
         for temporal in temporal_emotions:
             if temporal["start"] <= timestamp < temporal["end"]:
+                # temporal["dominant_emotion"] is already a string value
+                emotion_str = temporal["dominant_emotion"]
+                # Find the corresponding EmotionCategory enum
+                for emotion in EmotionCategory:
+                    if emotion.value == emotion_str:
+                        return {
+                            "emotion": emotion,
+                            "confidence": temporal["confidence"]
+                        }
+                # If not found, default to neutral
                 return {
-                    "emotion": EmotionCategory(temporal["dominant_emotion"]),
+                    "emotion": EmotionCategory.NEUTRAL,
                     "confidence": temporal["confidence"]
                 }
         

@@ -19,9 +19,11 @@ from rich import print as rprint
 from . import __version__
 from .caption_generator import CaptionGenerator
 from .models import WhisperModel, get_available_models
-from .utils import validate_video_file, get_output_filename, load_config, save_config
+from .utils import validate_video_file, get_output_filename, load_config, save_config, get_video_info, format_duration, format_size
 from .emotion_detector import EmotionDetector, EmotionCategory
 from .caption_styler import CaptionStyler, StyleIntensity, Platform
+from .video_merger import VideoMerger
+from .opencv_renderer import OpenCVRenderer
 
 console = Console()
 
@@ -412,6 +414,108 @@ def download_models(type):
         sys.exit(1)
 
 
+@cli.command('merge')
+@click.argument('video_file', type=click.Path(exists=True))
+@click.argument('caption_file', type=click.Path(exists=True))
+@click.option('--output', '-o', type=click.Path(),
+              help='Output video path (auto-generated if not specified)')
+@click.option('--platform', type=click.Choice(['tiktok', 'instagram', 'youtube_shorts', 'general']),
+              default='general', help='Target platform for optimization')
+@click.option('--quality', type=click.Choice(['low', 'medium', 'high']),
+              default='high', help='Output video quality')
+@click.option('--preview', is_flag=True,
+              help='Generate low-quality preview')
+@click.option('--font', type=click.Path(exists=True),
+              help='Path to custom font file')
+@click.option('--format', type=click.Choice(['mp4', 'webm']),
+              default='mp4', help='Output video format')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.option('--use-opencv', is_flag=True, 
+              help='Use OpenCV renderer (more reliable, avoids ImageMagick issues)')
+def merge(video_file, caption_file, output, platform, quality, preview, font, format, verbose, use_opencv):
+    """Merge emotion-styled captions with video."""
+    # Validate inputs
+    if not validate_video_file(video_file):
+        console.print(f"[red]Error:[/red] '{video_file}' is not a valid video file")
+        sys.exit(1)
+    
+    if not caption_file.endswith('.json'):
+        console.print(f"[red]Error:[/red] Caption file must be in JSON format")
+        sys.exit(1)
+    
+    # Generate output path if not specified
+    if not output:
+        base_name = Path(video_file).stem
+        suffix = "_preview" if preview else "_captioned"
+        output = f"{base_name}{suffix}.{format}"
+    
+    console.print(Panel.fit(
+        f"[bold cyan]Merging Styled Captions[/bold cyan]\n"
+        f"[bold]Video:[/bold] {video_file}\n"
+        f"[bold]Captions:[/bold] {caption_file}\n"
+        f"[bold]Platform:[/bold] {platform} | [bold]Quality:[/bold] {quality}",
+        title="Auto-Caption Video Merger"
+    ))
+    
+    try:
+        if use_opencv:
+            # Use OpenCV renderer
+            renderer = OpenCVRenderer(
+                platform=Platform(platform),
+                verbose=verbose
+            )
+            
+            # Process video with OpenCV
+            with console.status("[bold green]Rendering captions with OpenCV...", spinner="dots"):
+                temp_path = output + ".temp.mp4"
+                renderer.render_captions_on_video(
+                    video_file,
+                    caption_file,
+                    temp_path,
+                    codec="mp4v" if format == "mp4" else "VP80",
+                    preview_mode=preview
+                )
+                
+                # Add audio back
+                result_path = renderer.add_audio_from_original(
+                    video_file,
+                    temp_path,
+                    output
+                )
+        else:
+            # Use MoviePy merger
+            merger = VideoMerger(
+                platform=Platform(platform),
+                quality=quality,
+                font_path=font,
+                output_format=format,
+                verbose=verbose
+            )
+            
+            # Merge video with captions
+            with console.status("[bold green]Processing video with MoviePy...", spinner="dots"):
+                result_path = merger.merge_with_video(
+                    video_file,
+                    caption_file,
+                    output,
+                    preview_mode=preview
+                )
+        
+        console.print(f"[green]✓[/green] Video created: {result_path}")
+        
+        # Show video info
+        video_info = get_video_info(result_path)
+        console.print(f"  Duration: {format_duration(video_info['duration'])}")
+        console.print(f"  Size: {format_size(video_info['size'])}")
+        console.print(f"  Resolution: {video_info['video']['width']}x{video_info['video']['height']}")
+        
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {str(e)}")
+        if verbose:
+            console.print_exception()
+        sys.exit(1)
+
+
 @cli.command('analyze-emotion')
 @click.argument('video_file', type=click.Path(exists=True))
 @click.option('--output', '-o', type=click.Path(),
@@ -483,6 +587,61 @@ def version():
         f"[dim]Python {sys.version.split()[0]} | Click | Whisper | Transformers | Rich[/dim]",
         title="Version Info"
     ))
+
+
+@cli.command('preview-grid')
+@click.argument('video_file', type=click.Path(exists=True))
+@click.argument('caption_file', type=click.Path(exists=True))
+@click.option('--output', '-o', type=click.Path(),
+              help='Output preview path (auto-generated if not specified)')
+@click.option('--grid', nargs=2, type=int, default=(2, 2),
+              help='Grid size (rows cols)')
+@click.option('--duration', type=float, default=2.0,
+              help='Duration of each preview segment')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def preview_grid(video_file, caption_file, output, grid, duration, verbose):
+    """Create a preview grid showing different emotion styles."""
+    if not validate_video_file(video_file):
+        console.print(f"[red]Error:[/red] '{video_file}' is not a valid video file")
+        sys.exit(1)
+    
+    if not caption_file.endswith('.json'):
+        console.print(f"[red]Error:[/red] Caption file must be in JSON format")
+        sys.exit(1)
+    
+    # Generate output path if not specified
+    if not output:
+        base_name = Path(video_file).stem
+        output = f"{base_name}_emotion_grid.mp4"
+    
+    console.print(Panel.fit(
+        f"[bold cyan]Creating Emotion Preview Grid[/bold cyan]\n"
+        f"[bold]Video:[/bold] {video_file}\n"
+        f"[bold]Grid:[/bold] {grid[0]}x{grid[1]}",
+        title="Preview Grid Generator"
+    ))
+    
+    try:
+        # Initialize video merger
+        merger = VideoMerger(verbose=verbose)
+        
+        # Create preview grid
+        with console.status("[bold green]Creating preview grid...", spinner="dots"):
+            result_path = merger.create_preview_grid(
+                video_file,
+                caption_file,
+                output,
+                grid_size=tuple(grid),
+                segment_duration=duration
+            )
+        
+        console.print(f"[green]✓[/green] Preview created: {result_path}")
+        
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {str(e)}")
+        if verbose:
+            console.print_exception()
+        sys.exit(1)
 
 
 @cli.command('config')

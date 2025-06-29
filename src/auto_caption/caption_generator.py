@@ -247,8 +247,18 @@ class CaptionGenerator:
         
         for temporal in temporal_emotions:
             if temporal["start"] <= timestamp < temporal["end"]:
+                # temporal["dominant_emotion"] is already a string value
+                emotion_str = temporal["dominant_emotion"]
+                # Find the corresponding EmotionCategory enum
+                for emotion in EmotionCategory:
+                    if emotion.value == emotion_str:
+                        return {
+                            "emotion": emotion,
+                            "confidence": temporal["confidence"]
+                        }
+                # If not found, default to neutral
                 return {
-                    "emotion": EmotionCategory(temporal["dominant_emotion"]),
+                    "emotion": EmotionCategory.NEUTRAL,
                     "confidence": temporal["confidence"]
                 }
         
