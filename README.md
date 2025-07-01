@@ -134,6 +134,45 @@ auto-caption merge video.mp4 video.json --preview
 # happy, sad, angry, sarcastic, anxious, neutral, excited, contemplative
 ```
 
+### Word-by-Word Captions
+
+#### Generate Word-by-Word Captions
+```bash
+# Basic word-by-word captions
+auto-caption generate video.mp4 --word-by-word
+
+# With custom animation style
+auto-caption generate video.mp4 --word-by-word --word-animation typewriter
+
+# With emotion detection and word emphasis
+auto-caption generate video.mp4 --word-by-word --emotion-mode auto --word-animation emphasis
+
+# Adjust reading speed (words per second)
+auto-caption generate video.mp4 --word-by-word --words-per-second 2.5
+```
+
+#### Available Word Animation Styles
+- `typewriter` - Classic typewriter effect (default)
+- `fade_in` - Words fade in individually
+- `pop_in` - Words pop/scale in
+- `slide_in` - Words slide in from side
+- `bounce_in` - Words bounce in
+- `wave` - Words appear in wave pattern
+- `karaoke` - Highlight style like karaoke
+- `emphasis` - Key words appear with emphasis
+
+#### Export Word-by-Word Subtitles
+```bash
+# Export as ASS with word timing (recommended)
+auto-caption generate video.mp4 --word-by-word --format ass
+
+# Export multiple formats
+auto-caption generate video.mp4 --word-by-word --format srt --format ass --format json
+
+# Word-by-word with platform optimization
+auto-caption generate video.mp4 --word-by-word --platform tiktok --emotion-mode auto
+```
+
 ### Advanced Styling Options
 
 #### Platform-Specific Generation
@@ -197,6 +236,39 @@ auto-caption merge video.mp4 captions.json --use-opencv --preview
 auto-caption generate funny_video.mp4 \
   --emotion-mode manual \
   --emotion sarcastic \
+  --style-intensity intense \
+  --format json
+
+# Step 2: Create video with styled captions
+auto-caption merge funny_video.mp4 funny_video.json \
+  --platform tiktok \
+  --subtitle-format ass
+```
+
+#### Example 2: Emotional Story with Word-by-Word Effect
+```bash
+# Step 1: Generate word-by-word captions with emotion detection
+auto-caption generate story_video.mp4 \
+  --word-by-word \
+  --word-animation emphasis \
+  --emotion-mode auto \
+  --style-intensity medium \
+  --format json \
+  -o story_captions.json
+
+# Step 2: Create video with word-by-word captions
+auto-caption merge story_video.mp4 story_captions.json \
+  --subtitle-format ass \
+  --quality high
+```
+
+#### Example 3: Fast-Paced Content with Quick Words
+```bash
+# Generate with faster word timing
+auto-caption generate fast_video.mp4 \
+  --word-by-word \
+  --words-per-second 4.0 \
+  --word-animation pop_in \
   --style-intensity intense \
   --format json \
   -o funny_captions.json

@@ -179,10 +179,17 @@ class VideoMerger:
                     video_resolution=(width, height),
                     verbose=self.verbose
                 )
+
+                # Add word-by-word metadata if present
+                if captions.get("metadata", {}).get("word_by_word", False):
+                    title = f"Auto-Caption Word-by-Word - {os.path.basename(video_path)}"
+                else:
+                    title = f"Auto-Caption - {os.path.basename(video_path)}"
+
                 ass_generator.generate_ass_file(
                     captions,
                     subtitle_path,
-                    title=f"Auto-Caption - {os.path.basename(video_path)}"
+                    title=title
                 )
             else:
                 # Generate SRT as fallback
@@ -386,7 +393,7 @@ class VideoMerger:
         # Get unique emotions from segments
         emotions = []
         emotion_segments = {}
-        
+
         for segment in captions.get("segments", []):
             emotion = segment.get("emotion_metadata", {}).get("emotion", "neutral")
             if emotion not in emotion_segments:
@@ -410,22 +417,22 @@ class VideoMerger:
         # Create temporary files for each emotion segment
         with tempfile.TemporaryDirectory() as temp_dir:
             segment_videos = []
-            
+
             for idx, emotion in enumerate(emotions):
                 segment = emotion_segments[emotion]
-                
+
                 # Create segment-specific caption data
                 segment_caption_data = {
                     "segments": [segment]
                 }
-                
+
                 # Generate video segment with this emotion's style
                 segment_output = os.path.join(temp_dir, f"segment_{idx}.mp4")
-                
+
                 # Extract video segment
                 start = segment.get("start", 0)
                 duration = min(segment_duration, segment.get("end", start + segment_duration) - start)
-                
+
                 # Create trimmed video with subtitle
                 self._create_emotion_preview_segment(
                     video_path,
@@ -436,13 +443,13 @@ class VideoMerger:
                     (cell_width, cell_height),
                     emotion
                 )
-                
+
                 segment_videos.append({
                     'path': segment_output,
                     'position': (idx % grid_size[1], idx // grid_size[1]),
                     'emotion': emotion
                 })
-            
+
             # Combine segments into grid using ffmpeg
             self._create_grid_from_segments(
                 segment_videos,
@@ -475,16 +482,16 @@ class VideoMerger:
                 verbose=self.verbose
             )
             ass_generator.generate_ass_file(caption_data, subtitle_path)
-            
+
             # Extract and process video segment with subtitle
             input_video = ffmpeg.input(video_path, ss=start_time, t=duration)
-            
+
             # Scale to cell size
             stream = input_video.video.filter('scale', size[0], size[1])
-            
+
             # Add subtitle
             stream = stream.filter('subtitles', subtitle_path)
-            
+
             # Add emotion label overlay
             label_text = f"{emotion.upper()}"
             stream = stream.drawtext(
@@ -496,7 +503,7 @@ class VideoMerger:
                 box=1,
                 boxcolor='black@0.5'
             )
-            
+
             # Output
             stream = ffmpeg.output(
                 stream,
@@ -507,7 +514,7 @@ class VideoMerger:
                 crf=23,
                 preset='fast'
             )
-            
+
             ffmpeg.run(stream, overwrite_output=True, quiet=not self.verbose)
 
     def _create_grid_from_segments(
@@ -521,27 +528,27 @@ class VideoMerger:
         """Create a grid video from individual segments using ffmpeg."""
         if not segments:
             return
-        
+
         # Build complex filter for grid layout
         inputs = []
         filter_complex = []
-        
+
         # Add all video inputs
         for seg in segments:
             inputs.extend(['-i', seg['path']])
-        
+
         # Create filter complex for grid
         # First, ensure all videos have the same duration
         for i in range(len(segments)):
             filter_complex.append(f"[{i}:v]setpts=PTS-STARTPTS,scale={cell_size[0]}:{cell_size[1]},setsar=1[v{i}]")
-        
+
         # Create the grid layout
         grid_filter = ""
         for idx, seg in enumerate(segments):
             x, y = seg['position']
             x_pos = x * cell_size[0]
             y_pos = y * cell_size[1]
-            
+
             if idx == 0:
                 grid_filter = f"[v0]pad={grid_size[1]*cell_size[0]}:{grid_size[0]*cell_size[1]}:0:0[base]"
                 filter_complex.append(grid_filter)
@@ -554,10 +561,10 @@ class VideoMerger:
                 else:
                     overlay_filter += "[out]"
                 filter_complex.append(overlay_filter)
-        
+
         # Combine all filters
         filter_complex_str = ";".join(filter_complex)
-        
+
         # Build ffmpeg command
         cmd = ['ffmpeg', '-y']
         cmd.extend(inputs)
@@ -570,7 +577,7 @@ class VideoMerger:
             '-t', str(duration),
             output_path
         ])
-        
+
         # Run ffmpeg
         try:
             subprocess.run(cmd, check=True, capture_output=not self.verbose)
@@ -583,7 +590,8 @@ class VideoMerger:
         output_dir: str,
         name_pattern: str = "{name}_captioned.{ext}",
         parallel: bool = False,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        word_by_word: bool = False
     ) -> List[str]:
         """
         Batch merge multiple videos with captions.
@@ -594,6 +602,7 @@ class VideoMerger:
             name_pattern: Output naming pattern
             parallel: Process videos in parallel
             progress_callback: Progress callback function
+            word_by_word: Whether captions are word-by-word format
 
         Returns:
             List of output video paths
@@ -612,7 +621,13 @@ class VideoMerger:
                 # Generate output filename
                 video_name = Path(video_path).stem
                 ext = self.output_format
-                output_name = name_pattern.format(name=video_name, ext=ext)
+                
+                # Add word-by-word suffix if applicable
+                if word_by_word or (isinstance(caption_data, dict) and caption_data.get("word_by_word", False)):
+                    output_name = name_pattern.format(name=f"{video_name}_word", ext=ext)
+                else:
+                    output_name = name_pattern.format(name=video_name, ext=ext)
+                    
                 output_path = os.path.join(output_dir, output_name)
 
                 # Merge video with captions

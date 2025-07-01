@@ -26,6 +26,7 @@ from .caption_styler import CaptionStyler, StyleIntensity, Platform
 from .video_merger import VideoMerger
 from .subtitle import ASSGenerator
 from .training import EmotionTrainer, TrainingConfig, DatasetBuilder, VideoAugmenter, AugmentationConfig
+from .word_timing import WordTimingProcessor, WordAnimationStyle
 
 console = Console()
 
@@ -61,7 +62,7 @@ def cli(ctx, config):
               type=click.Choice(['tiny', 'base', 'small', 'medium', 'large']),
               help='Whisper model to use (default: base)')
 @click.option('--format', '-f', multiple=True,
-              type=click.Choice(['srt', 'vtt', 'txt', 'json']),
+              type=click.Choice(['srt', 'vtt', 'txt', 'json', 'ass']),
               help='Output format(s) (can be specified multiple times)')
 @click.option('--output', '-o', type=click.Path(),
               help='Output file path (auto-generated if not specified)')
@@ -83,9 +84,16 @@ def cli(ctx, config):
               default='medium', help='Caption text formatting intensity')
 @click.option('--platform', type=click.Choice(['tiktok', 'instagram', 'youtube_shorts', 'general']),
               default='general', help='Target platform for optimization')
+@click.option('--word-by-word', is_flag=True, help='Enable word-by-word caption display')
+@click.option('--word-animation', type=click.Choice(['typewriter', 'fade_in', 'pop_in', 'slide_in',
+              'bounce_in', 'wave', 'random', 'karaoke', 'emphasis']),
+              default='typewriter', help='Word animation style')
+@click.option('--words-per-second', type=float, default=3.0,
+              help='Reading speed for word timing (default: 3.0)')
 @click.pass_context
 def generate(ctx, video_file, model, format, output, language, task, verbose,
-             temperature, threads, emotion_mode, emotion, style_intensity, platform):
+             temperature, threads, emotion_mode, emotion, style_intensity, platform,
+             word_by_word, word_animation, words_per_second):
     """Generate captions for a single video file with optional emotion-adaptive text formatting."""
     config = ctx.obj.get('config', {})
 
@@ -115,6 +123,11 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
     try:
         # Initialize caption generator
         with console.status("[bold green]Loading Whisper model...", spinner="dots"):
+            # Enable word timestamps if word-by-word is requested
+            transcribe_options = {}
+            if word_by_word:
+                transcribe_options["word_timestamps"] = True
+
             generator = CaptionGenerator(
                 model_name=model,
                 language=language if language != 'auto' else None,
@@ -129,7 +142,7 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
         # Initialize emotion detector if needed
         emotion_result = None
         if emotion_mode != 'off':
-            console.print("[yellow]Initializing face-based emotion detection...[/yellow]")
+            console.print(f"[yellow]Initializing face-based emotion detection...[/yellow]")
             console.print("[dim]Analyzing facial expressions for accurate emotion detection[/dim]")
             emotion_detector = EmotionDetector(verbose=verbose)
 
@@ -176,7 +189,8 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
             result = generator.generate(
                 video_file,
                 temperature=temperature,
-                progress_callback=lambda p: progress.update(task_id, completed=p)
+                progress_callback=lambda p: progress.update(task_id, completed=p),
+                **transcribe_options
             )
 
         console.print("[green]✓[/green] Caption generation complete")
@@ -244,6 +258,60 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
             result['emotion_data'] = emotion_result.to_dict() if emotion_result else None
             console.print("[green]✓[/green] Emotion-adaptive formatting applied")
 
+        # Apply word-by-word timing if enabled
+        if word_by_word:
+            console.print("[yellow]Processing word-by-word timing...[/yellow]")
+            word_processor = WordTimingProcessor(
+                animation_style=WordAnimationStyle(word_animation),
+                words_per_second=words_per_second,
+                enable_word_timestamps=True
+            )
+
+            # Process segments into word timings
+            word_segments = word_processor.process_segments(
+                result['segments'],
+                result.get('emotion_data')
+            )
+
+            # Store word timing data
+            result['word_segments'] = []
+            for ws in word_segments:
+                word_list = []
+                for w in ws.words:
+                    word_dict = {
+                        'word': w.word,
+                        'start_time': w.start_time,
+                        'end_time': w.end_time,
+                        'duration': w.duration,
+                        'segment_index': w.segment_index,
+                        'word_index': w.word_index,
+                        'emotion': w.emotion.value,
+                        'confidence': w.confidence,
+                        'is_emphasized': w.is_emphasized,
+                        'animation_delay': w.animation_delay,
+                        'custom_style': w.custom_style
+                    }
+                    word_list.append(word_dict)
+
+                segment_dict = {
+                    'segment_index': ws.segment_index,
+                    'start_time': ws.start_time,
+                    'end_time': ws.end_time,
+                    'full_text': ws.full_text,
+                    'words': word_list,
+                    'emotion': ws.emotion.value,
+                    'confidence': ws.confidence
+                }
+                result['word_segments'].append(segment_dict)
+            result['word_by_word'] = True
+            result['word_animation'] = word_animation
+            result['metadata'] = {
+                'word_by_word': True,
+                'animation_style': word_animation
+            }
+
+            console.print(f"[green]✓[/green] Word-by-word timing applied ({word_animation} style)")
+
         # Save outputs
         saved_files = []
         for fmt in format:
@@ -262,6 +330,9 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
         console.print(f"  Duration: {result['duration']:.1f} seconds")
         console.print(f"  Language: {result['language']}")
         console.print(f"  Segments: {len(result['segments'])}")
+        if word_by_word and 'word_segments' in result:
+            total_words = sum(len(ws['words']) for ws in result['word_segments'])
+            console.print(f"  Words: {total_words} (word-by-word mode)")
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {str(e)}")
@@ -278,7 +349,7 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
               type=click.Choice(['tiny', 'base', 'small', 'medium', 'large']),
               help='Whisper model to use')
 @click.option('--format', '-f', multiple=True,
-              type=click.Choice(['srt', 'vtt', 'txt', 'json']),
+              type=click.Choice(['srt', 'vtt', 'txt', 'json', 'ass']),
               help='Output format(s)')
 @click.option('--language', '-l', default=None,
               help='Language code or "auto" for detection')
@@ -294,9 +365,14 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
               default='medium', help='Caption text formatting intensity')
 @click.option('--platform', type=click.Choice(['tiktok', 'instagram', 'youtube_shorts', 'general']),
               default='general', help='Target platform for optimization')
+@click.option('--word-by-word', is_flag=True, help='Enable word-by-word caption display')
+@click.option('--word-animation', type=click.Choice(['typewriter', 'fade_in', 'pop_in', 'slide_in',
+              'bounce_in', 'wave', 'random', 'karaoke', 'emphasis']),
+              default='typewriter', help='Word animation style')
 @click.pass_context
 def batch(ctx, directory, pattern, model, format, language, recursive,
-          skip_existing, threads, emotion_mode, style_intensity, platform):
+          skip_existing, threads, emotion_mode, style_intensity, platform,
+          word_by_word, word_animation):
     """Process multiple video files in batch with optional face-based emotion detection."""
     config = ctx.obj.get('config', {})
 
@@ -368,8 +444,72 @@ def batch(ctx, directory, pattern, model, format, language, recursive,
         console.print(f"[bold]Processing {i}/{len(video_files)}:[/bold] {video_file.name}")
 
         try:
+            # Enable word timestamps if word-by-word is requested
+            transcribe_options = {}
+            if word_by_word:
+                transcribe_options["word_timestamps"] = True
+
             # Generate captions
-            result = generator.generate(str(video_file))
+            result = generator.generate(
+                str(video_file),
+                detect_emotions=emotion_mode == 'auto',
+                style_captions=emotion_mode != 'off',
+                style_intensity=StyleIntensity(style_intensity),
+                platform=Platform(platform),
+                **transcribe_options
+            )
+
+            # Apply word-by-word timing if enabled
+            if word_by_word:
+                console.print(f"  [yellow]Processing word-by-word timing...[/yellow]")
+                word_processor = WordTimingProcessor(
+                    animation_style=WordAnimationStyle(word_animation),
+                    words_per_second=3.0,  # Default reading speed
+                    enable_word_timestamps=True
+                )
+
+                # Process segments into word timings
+                word_segments = word_processor.process_segments(
+                    result['segments'],
+                    result.get('emotion_data')
+                )
+
+                # Store word timing data
+                result['word_segments'] = []
+                for ws in word_segments:
+                    word_list = []
+                    for w in ws.words:
+                        word_dict = {
+                            'word': w.word,
+                            'start_time': w.start_time,
+                            'end_time': w.end_time,
+                            'duration': w.duration,
+                            'segment_index': w.segment_index,
+                            'word_index': w.word_index,
+                            'emotion': w.emotion.value,
+                            'confidence': w.confidence,
+                            'is_emphasized': w.is_emphasized,
+                            'animation_delay': w.animation_delay,
+                            'custom_style': w.custom_style
+                        }
+                        word_list.append(word_dict)
+                    
+                    segment_dict = {
+                        'segment_index': ws.segment_index,
+                        'start_time': ws.start_time,
+                        'end_time': ws.end_time,
+                        'full_text': ws.full_text,
+                        'words': word_list,
+                        'emotion': ws.emotion.value,
+                        'confidence': ws.confidence
+                    }
+                    result['word_segments'].append(segment_dict)
+                result['word_by_word'] = True
+                result['word_animation'] = word_animation
+                result['metadata'] = {
+                    'word_by_word': True,
+                    'animation_style': word_animation
+                }
 
             # Save outputs
             for fmt in format:
@@ -634,13 +774,13 @@ def export_subtitles(caption_file, output, format, platform, style_intensity, vi
         # Show summary
         console.print("\n[bold green]Export Complete![/bold green]")
         console.print(f"Total segments: {len(captions.get('segments', []))}")
-        
+
         # Show emotion distribution if available
         emotion_counts = {}
         for segment in captions.get('segments', []):
             emotion = segment.get('emotion_metadata', {}).get('emotion', 'neutral')
             emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
-        
+
         if emotion_counts:
             console.print("\n[bold]Emotion Distribution:[/bold]")
             for emotion, count in sorted(emotion_counts.items(), key=lambda x: x[1], reverse=True):
@@ -922,53 +1062,53 @@ def prepare_dataset(video_file, output_dir, interval, emotion_labels, auto_detec
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_interval = int(fps * interval)
-        
+
         extracted_frames = []
         frame_count = 0
-        
+
         console.print(f"[yellow]Extracting frames every {interval}s...[/yellow]")
-        
+
         with tqdm(total=total_frames // frame_interval) as pbar:
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
-                
+
                 if frame_count % frame_interval == 0:
                     # Save frame
                     frame_filename = f"frame_{frame_count:06d}.jpg"
                     frame_path = Path(output_dir) / "frames" / frame_filename
                     frame_path.parent.mkdir(exist_ok=True)
-                    
+
                     # Convert BGR to RGB
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     cv2.imwrite(str(frame_path), frame)
-                    
+
                     extracted_frames.append({
                         "path": str(frame_path),
                         "timestamp": frame_count / fps,
                         "frame_number": frame_count
                     })
-                    
+
                     pbar.update(1)
-                
+
                 frame_count += 1
-        
+
         cap.release()
         console.print(f"[green]✓[/green] Extracted {len(extracted_frames)} frames")
-        
+
         # Auto-detect or manual annotation
         annotations = []
-        
+
         if auto_detect:
             console.print("[yellow]Auto-detecting emotions...[/yellow]")
             detector = EmotionDetector(verbose=True)
-            
+
             for frame_data in tqdm(extracted_frames):
                 # Detect emotion in frame
                 img = cv2.imread(frame_data["path"])
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                
+
                 # Simple detection (you'd implement proper frame emotion detection)
                 # This is a placeholder
                 annotations.append({
@@ -976,49 +1116,49 @@ def prepare_dataset(video_file, output_dir, interval, emotion_labels, auto_detec
                     "emotion": "neutral",  # Would be detected
                     "confidence": 0.9
                 })
-        
+
         else:
             # Interactive annotation
             console.print("[yellow]Manual annotation mode[/yellow]")
             console.print("Enter emotion for each frame (or 'skip' to skip, 'quit' to stop):")
-            
+
             if not emotion_labels:
                 emotion_labels = ["happy", "sad", "angry", "neutral", "surprised", "fearful"]
-            
+
             console.print(f"Available emotions: {', '.join(emotion_labels)}")
-            
+
             for frame_data in extracted_frames:
                 # Show frame info
                 console.print(f"\nFrame: {frame_data['path']} (time: {frame_data['timestamp']:.2f}s)")
-                
+
                 # Get emotion input
                 emotion = click.prompt("Emotion", type=click.Choice(list(emotion_labels) + ['skip', 'quit']))
-                
+
                 if emotion == 'quit':
                     break
                 elif emotion == 'skip':
                     continue
-                
+
                 annotations.append({
                     **frame_data,
                     "emotion": emotion,
                     "confidence": 1.0
                 })
-        
+
         # Save dataset in requested format
         if format == "directory":
             # Organize by emotion
             for ann in annotations:
                 emotion_dir = Path(output_dir) / "train" / ann["emotion"]
                 emotion_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 # Copy frame to emotion directory
                 src = ann["path"]
                 dst = emotion_dir / Path(src).name
                 shutil.copy(src, dst)
-            
+
             console.print(f"[green]✓[/green] Dataset saved in directory format")
-            
+
         elif format == "csv":
             # Save as CSV
             import pandas as pd
@@ -1026,7 +1166,7 @@ def prepare_dataset(video_file, output_dir, interval, emotion_labels, auto_detec
             csv_path = Path(output_dir) / "annotations.csv"
             df.to_csv(csv_path, index=False)
             console.print(f"[green]✓[/green] Annotations saved to: {csv_path}")
-            
+
         elif format == "json":
             # Save as JSON
             json_data = {
@@ -1038,7 +1178,7 @@ def prepare_dataset(video_file, output_dir, interval, emotion_labels, auto_detec
             with open(json_path, 'w') as f:
                 json.dump(json_data, f, indent=2)
             console.print(f"[green]✓[/green] Annotations saved to: {json_path}")
-        
+
     except Exception as e:
         console.print(f"[red]Error preparing dataset:[/red] {str(e)}")
         sys.exit(1)
@@ -1060,21 +1200,21 @@ def evaluate_emotion(model_path, test_data, save_report, confusion_matrix, verbo
         f"[bold]Test Data:[/bold] {test_data}",
         title="Model Evaluation"
     ))
-    
+
     try:
         # Load model
         console.print("[yellow]Loading model...[/yellow]")
         config = TrainingConfig(output_dir=model_path)
         trainer = EmotionTrainer(config)
         trainer.load_model(model_path)
-        
+
         # Load test dataset
         console.print("[yellow]Loading test data...[/yellow]")
         builder = DatasetBuilder(
             emotion_labels=trainer.emotion_labels,
             image_size=config.image_size
         )
-        
+
         if Path(test_data).is_dir():
             test_dataset = builder.from_directory(
                 test_data,
@@ -1086,24 +1226,24 @@ def evaluate_emotion(model_path, test_data, save_report, confusion_matrix, verbo
             # Assume it's a CSV or JSON file
             console.print("[red]Error:[/red] Only directory format currently supported for evaluation")
             sys.exit(1)
-        
+
         # Evaluate
         console.print("[yellow]Running evaluation...[/yellow]")
         results = trainer.evaluate(test_dataset, save_confusion_matrix=confusion_matrix)
-        
+
         # Display results
         table = Table(title="Evaluation Results", show_header=True)
         table.add_column("Metric", style="cyan")
         table.add_column("Value", justify="right")
-        
+
         # Overall metrics
         table.add_row("Accuracy", f"{results['accuracy']:.4f}")
         table.add_row("Precision", f"{results['weighted avg']['precision']:.4f}")
         table.add_row("Recall", f"{results['weighted avg']['recall']:.4f}")
         table.add_row("F1-Score", f"{results['weighted avg']['f1-score']:.4f}")
-        
+
         console.print(table)
-        
+
         # Per-class results
         class_table = Table(title="Per-Emotion Performance", show_header=True)
         class_table.add_column("Emotion", style="cyan")
@@ -1111,7 +1251,7 @@ def evaluate_emotion(model_path, test_data, save_report, confusion_matrix, verbo
         class_table.add_column("Recall", justify="right")
         class_table.add_column("F1-Score", justify="right")
         class_table.add_column("Support", justify="right")
-        
+
         for emotion in trainer.emotion_labels.keys():
             if emotion in results:
                 metrics = results[emotion]
@@ -1122,19 +1262,19 @@ def evaluate_emotion(model_path, test_data, save_report, confusion_matrix, verbo
                     f"{metrics['f1-score']:.3f}",
                     str(metrics['support'])
                 )
-        
+
         console.print(class_table)
-        
+
         # Save report if requested
         if save_report:
             with open(save_report, 'w') as f:
                 json.dump(results, f, indent=2)
             console.print(f"[green]✓[/green] Evaluation report saved to: {save_report}")
-        
+
         if confusion_matrix:
             cm_path = Path(model_path) / "confusion_matrix.png"
             console.print(f"[green]✓[/green] Confusion matrix saved to: {cm_path}")
-        
+
     except Exception as e:
         console.print(f"[red]Error during evaluation:[/red] {str(e)}")
         if verbose:

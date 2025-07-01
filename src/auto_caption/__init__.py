@@ -16,6 +16,7 @@ from .emotion_detector import EmotionDetector, EmotionCategory, EmotionScore, Em
 from .caption_styler import CaptionStyler, StyleIntensity, Platform, EmotionStyleMap
 from .video_merger import VideoMerger
 from .subtitle import ASSGenerator, ASSStyle
+from .word_timing import WordTimingProcessor, WordAnimationStyle, WordTiming, WordSegment
 
 __all__ = [
     "CaptionGenerator",
@@ -34,6 +35,10 @@ __all__ = [
     "VideoMerger",
     "ASSGenerator",
     "ASSStyle",
+    "WordTimingProcessor",
+    "WordAnimationStyle",
+    "WordTiming",
+    "WordSegment",
     "__version__",
     "__author__",
     "__email__",
