@@ -16,6 +16,14 @@ from pathlib import Path
 
 from .emotion_detector import EmotionCategory
 from .caption_styler import StyleIntensity, Platform
+from .object_detection import (
+    ObjectDetector,
+    DetectionResult,
+    PositionOptimizer,
+    PositionConstraint,
+    OptimizationResult,
+    PositioningStrategy
+)
 
 
 class WordAnimationStyle(Enum):
@@ -48,7 +56,7 @@ class WordTiming:
     position_offset: Optional[Tuple[float, float]] = None  # (x, y) offset
     size_multiplier: float = 1.0
     rotation_angle: float = 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
@@ -220,7 +228,10 @@ class WordTimingProcessor:
         punctuation_pause: float = 0.2,
         enable_word_timestamps: bool = True,
         video_resolution: Tuple[int, int] = (1920, 1080),
-        platform: Platform = Platform.GENERAL
+        platform: Platform = Platform.GENERAL,
+        enable_object_detection: bool = True,
+        object_detector: Optional[ObjectDetector] = None,
+        position_optimizer: Optional[PositionOptimizer] = None
     ):
         """
         Initialize word timing processor.
@@ -245,7 +256,15 @@ class WordTimingProcessor:
         self.enable_word_timestamps = enable_word_timestamps
         self.video_resolution = video_resolution
         self.platform = platform
-        
+        self.enable_object_detection = enable_object_detection
+
+        # Initialize object detection components
+        self.object_detector = object_detector
+        self.position_optimizer = position_optimizer or PositionOptimizer(
+            video_resolution=video_resolution,
+            platform=platform
+        )
+
         # Calculate safe zone boundaries
         self.safe_zone = self._calculate_safe_zone()
 
@@ -253,7 +272,7 @@ class WordTimingProcessor:
         """Calculate safe zone boundaries in pixels."""
         safe_margins = self.PLATFORM_SAFE_ZONES.get(self.platform, self.PLATFORM_SAFE_ZONES[Platform.GENERAL])
         width, height = self.video_resolution
-        
+
         return {
             "top": height * safe_margins["top"],
             "bottom": height * (1 - safe_margins["bottom"]),
@@ -267,7 +286,8 @@ class WordTimingProcessor:
         self,
         segments: List[Dict[str, Any]],
         emotion_data: Optional[Dict[str, Any]] = None,
-        video_resolution: Optional[Tuple[int, int]] = None
+        video_resolution: Optional[Tuple[int, int]] = None,
+        detection_results: Optional[List[DetectionResult]] = None
     ) -> List[WordSegment]:
         """
         Process caption segments into word-level timing.
@@ -284,7 +304,9 @@ class WordTimingProcessor:
         if video_resolution:
             self.video_resolution = video_resolution
             self.safe_zone = self._calculate_safe_zone()
-        
+            if self.position_optimizer:
+                self.position_optimizer.video_resolution = video_resolution
+
         word_segments = []
 
         for idx, segment in enumerate(segments):
@@ -292,7 +314,7 @@ class WordTimingProcessor:
             start_time = segment.get("start", 0.0)
             end_time = segment.get("end", 0.0)
             text = segment.get("text", "")
-            
+
             # Get emotion for this segment
             emotion_meta = segment.get("emotion_metadata", {})
             emotion_str = emotion_meta.get("emotion", "neutral")
@@ -310,13 +332,21 @@ class WordTimingProcessor:
                 )
             else:
                 # Generate word timings by interpolation
+                # Get detection result for this segment time if available
+                segment_detection = None
+                if detection_results and self.enable_object_detection:
+                    segment_detection = self._find_detection_for_time(
+                        start_time, detection_results
+                    )
+
                 word_timings = self._interpolate_word_timings(
                     text,
                     start_time,
                     end_time,
                     idx,
                     emotion,
-                    confidence
+                    confidence,
+                    segment_detection
                 )
 
             # Apply animation delays based on style
@@ -348,7 +378,8 @@ class WordTimingProcessor:
         end_time: float,
         segment_index: int,
         emotion: EmotionCategory,
-        confidence: float
+        confidence: float,
+        detection_result: Optional[DetectionResult] = None
     ) -> List[WordTiming]:
         """Interpolate word timings when word-level timestamps are not available."""
         # Tokenize text into words
@@ -358,7 +389,7 @@ class WordTimingProcessor:
 
         # Calculate total duration
         total_duration = end_time - start_time
-        
+
         # Calculate word durations based on length and emphasis
         word_durations = self._calculate_word_durations(
             words,
@@ -370,58 +401,66 @@ class WordTimingProcessor:
         word_timings = []
         current_time = start_time
 
-        for idx, (word, duration) in enumerate(zip(words, word_durations)):
-            # Check if word should be emphasized
-            is_emphasized = self._should_emphasize_word(word, emotion)
-            
-            # Calculate emotion-based position and size
-            position_style = self.EMOTION_POSITION_STYLES.get(emotion, self.EMOTION_POSITION_STYLES[EmotionCategory.NEUTRAL])
-            
-            # Calculate base Y position within safe zone
-            base_y = self.safe_zone["top"] + (self.safe_zone["height"] * position_style["y_position"])
-            y_variance = self.safe_zone["height"] * position_style["y_variance"]
-            y_position = base_y + np.random.uniform(-y_variance, y_variance)
-            
-            # Calculate X position (centered with spread)
-            center_x = self.video_resolution[0] / 2
-            total_width = len(words) * position_style["x_spread"] * self.safe_zone["width"]
-            start_x = center_x - (total_width / 2)
-            x_position = start_x + (idx * position_style["x_spread"] * self.safe_zone["width"])
-            
-            # Apply wave or other positional effects
-            if position_style["wave_amplitude"] > 0:
-                wave_offset = position_style["wave_amplitude"] * self.safe_zone["height"] * np.sin(idx * 0.5)
-                y_position += wave_offset
-            
-            # Convert to relative offset from center
-            x_offset = x_position - center_x
-            y_offset = y_position - (self.video_resolution[1] / 2)
-            
-            # Calculate size multiplier
-            size_multiplier = position_style["size_base"]
-            if is_emphasized:
-                size_multiplier *= 1.2  # Subtle boost for emphasized words
-            
-            # Calculate rotation
-            rotation = np.random.uniform(position_style["rotation_range"][0], position_style["rotation_range"][1])
-            
-            word_timing = WordTiming(
-                word=word,
-                start_time=current_time,
-                end_time=current_time + duration,
-                duration=duration,
-                segment_index=segment_index,
-                word_index=idx,
-                emotion=emotion,
-                confidence=confidence,
-                is_emphasized=is_emphasized,
-                position_offset=(x_offset, y_offset),
-                size_multiplier=size_multiplier,
-                rotation_angle=rotation
+        # If object detection is enabled and we have detection results, optimize positions
+        if self.enable_object_detection and detection_result and self.position_optimizer:
+            word_timings = self._generate_optimized_word_timings(
+                words, word_durations, start_time, segment_index,
+                emotion, confidence, detection_result
             )
-            
-            word_timings.append(word_timing)
-            current_time += duration
+        else:
+            # Fall back to standard positioning
+            for idx, (word, duration) in enumerate(zip(words, word_durations)):
+                # Check if word should be emphasized
+                is_emphasized = self._should_emphasize_word(word, emotion)
+
+                # Calculate emotion-based position and size
+                position_style = self.EMOTION_POSITION_STYLES.get(emotion, self.EMOTION_POSITION_STYLES[EmotionCategory.NEUTRAL])
+
+                # Calculate base Y position within safe zone
+                base_y = self.safe_zone["top"] + (self.safe_zone["height"] * position_style["y_position"])
+                y_variance = self.safe_zone["height"] * position_style["y_variance"]
+                y_position = base_y + np.random.uniform(-y_variance, y_variance)
+
+                # Calculate X position (centered with spread)
+                center_x = self.video_resolution[0] / 2
+                total_width = len(words) * position_style["x_spread"] * self.safe_zone["width"]
+                start_x = center_x - (total_width / 2)
+                x_position = start_x + (idx * position_style["x_spread"] * self.safe_zone["width"])
+
+                # Apply wave or other positional effects
+                if position_style["wave_amplitude"] > 0:
+                    wave_offset = position_style["wave_amplitude"] * self.safe_zone["height"] * np.sin(idx * 0.5)
+                    y_position += wave_offset
+
+                # Convert to relative offset from center
+                x_offset = x_position - center_x
+                y_offset = y_position - (self.video_resolution[1] / 2)
+
+                # Calculate size multiplier
+                size_multiplier = position_style["size_base"]
+                if is_emphasized:
+                    size_multiplier *= 1.2  # Subtle boost for emphasized words
+
+                # Calculate rotation
+                rotation = np.random.uniform(position_style["rotation_range"][0], position_style["rotation_range"][1])
+
+                word_timing = WordTiming(
+                    word=word,
+                    start_time=current_time,
+                    end_time=current_time + duration,
+                    duration=duration,
+                    segment_index=segment_index,
+                    word_index=idx,
+                    emotion=emotion,
+                    confidence=confidence,
+                    is_emphasized=is_emphasized,
+                    position_offset=(x_offset, y_offset),
+                    size_multiplier=size_multiplier,
+                    rotation_angle=rotation
+                )
+
+                word_timings.append(word_timing)
+                current_time += duration
 
         return word_timings
 
@@ -439,41 +478,41 @@ class WordTimingProcessor:
             word = word_info.get("word", "")
             start = word_info.get("start", 0.0)
             end = word_info.get("end", start + self.min_word_duration)
-            
+
             # Check if word should be emphasized
             is_emphasized = self._should_emphasize_word(word, emotion)
-            
+
             # Calculate emotion-based position and size
             position_style = self.EMOTION_POSITION_STYLES.get(emotion, self.EMOTION_POSITION_STYLES[EmotionCategory.NEUTRAL])
-            
+
             # Calculate base Y position within safe zone
             base_y = self.safe_zone["top"] + (self.safe_zone["height"] * position_style["y_position"])
             y_variance = self.safe_zone["height"] * position_style["y_variance"]
             y_position = base_y + np.random.uniform(-y_variance, y_variance)
-            
+
             # Calculate X position (centered with spread)
             center_x = self.video_resolution[0] / 2
             total_width = len(word_data) * position_style["x_spread"] * self.safe_zone["width"]
             start_x = center_x - (total_width / 2)
             x_position = start_x + (idx * position_style["x_spread"] * self.safe_zone["width"])
-            
+
             # Apply wave or other positional effects
             if position_style["wave_amplitude"] > 0:
                 wave_offset = position_style["wave_amplitude"] * self.safe_zone["height"] * np.sin(idx * 0.5)
                 y_position += wave_offset
-            
+
             # Convert to relative offset from center
             x_offset = x_position - center_x
             y_offset = y_position - (self.video_resolution[1] / 2)
-            
+
             # Calculate size multiplier
             size_multiplier = position_style["size_base"]
             if is_emphasized:
                 size_multiplier *= 1.2  # Subtle boost for emphasized words
-            
+
             # Calculate rotation
             rotation = np.random.uniform(position_style["rotation_range"][0], position_style["rotation_range"][1])
-            
+
             word_timing = WordTiming(
                 word=word,
                 start_time=start,
@@ -488,7 +527,7 @@ class WordTimingProcessor:
                 size_multiplier=size_multiplier,
                 rotation_angle=rotation
             )
-            
+
             word_timings.append(word_timing)
 
         return word_timings
@@ -508,62 +547,62 @@ class WordTimingProcessor:
         """Calculate duration for each word based on various factors."""
         # Calculate base weights
         weights = []
-        
+
         for word in words:
             # Base weight from word length
             weight = len(word) ** 0.5
-            
+
             # Adjust for punctuation
             if word.endswith(('.', '!', '?')):
                 weight += self.punctuation_pause * self.words_per_second
             elif word.endswith(','):
                 weight += (self.punctuation_pause * 0.5) * self.words_per_second
-            
+
             # Adjust for emphasis
             if self._should_emphasize_word(word, emotion):
                 weight *= self.emphasis_duration_multiplier
-            
+
             weights.append(weight)
-        
+
         # Normalize weights to fit total duration
         total_weight = sum(weights)
         if total_weight > 0:
             durations = [
-                max(self.min_word_duration, 
-                    min(self.max_word_duration, 
+                max(self.min_word_duration,
+                    min(self.max_word_duration,
                         (w / total_weight) * total_duration))
                 for w in weights
             ]
         else:
             # Fallback to equal distribution
             durations = [total_duration / len(words)] * len(words)
-        
+
         # Adjust if total doesn't match
         duration_diff = total_duration - sum(durations)
         if duration_diff != 0:
             adjustment = duration_diff / len(durations)
             durations = [d + adjustment for d in durations]
-        
+
         return durations
 
     def _should_emphasize_word(self, word: str, emotion: EmotionCategory) -> bool:
         """Determine if a word should be emphasized based on emotion."""
         # Clean word for comparison
         clean_word = word.lower().strip('.,!?;:')
-        
+
         # Check emotion-specific emphasis words
         emphasis_words = self.EMOTION_EMPHASIS_WORDS.get(emotion, [])
         if clean_word in emphasis_words:
             return True
-        
+
         # Check for all-caps words (already emphasized by user)
         if word.isupper() and len(word) > 1:
             return True
-        
+
         # Check for exclamation marks
         if emotion in [EmotionCategory.HAPPY, EmotionCategory.EXCITED] and word.endswith('!'):
             return True
-        
+
         return False
 
     def _apply_animation_delays(
@@ -574,37 +613,37 @@ class WordTimingProcessor:
         """Apply animation delays based on the selected style."""
         if not word_timings:
             return word_timings
-        
+
         if animation_style == WordAnimationStyle.TYPEWRITER:
             # No delay needed, words appear at their start time
             pass
-            
+
         elif animation_style == WordAnimationStyle.WAVE:
             # Create wave effect with emotion-based amplitude
             for i, word in enumerate(word_timings):
                 position_style = self.EMOTION_POSITION_STYLES.get(
-                    word.emotion, 
+                    word.emotion,
                     self.EMOTION_POSITION_STYLES[EmotionCategory.NEUTRAL]
                 )
-                
+
                 # Use emotion-specific wave amplitude
                 wave_amplitude = position_style.get("wave_amplitude", 0.02)
-                
+
                 word.animation_delay = wave_amplitude * abs(np.sin(i * 0.5))
-                
+
                 # Wave position is already handled in position calculation
-                
+
         elif animation_style == WordAnimationStyle.RANDOM:
             # Random delays
             for word in word_timings:
                 word.animation_delay = np.random.uniform(0, 0.3)
-                
+
         elif animation_style == WordAnimationStyle.EMPHASIS:
             # Delay non-emphasized words
             for word in word_timings:
                 if not word.is_emphasized:
                     word.animation_delay = 0.1
-        
+
         return word_timings
 
     def _str_to_emotion(self, emotion_str: str) -> EmotionCategory:
@@ -613,6 +652,107 @@ class WordTimingProcessor:
             if emotion.value == emotion_str:
                 return emotion
         return EmotionCategory.NEUTRAL
+    
+    def _find_detection_for_time(
+        self,
+        timestamp: float,
+        detection_results: List[DetectionResult]
+    ) -> Optional[DetectionResult]:
+        """Find the detection result closest to the given timestamp."""
+        if not detection_results:
+            return None
+        
+        # Find closest detection result
+        closest = min(detection_results, key=lambda d: abs(d.timestamp - timestamp))
+        
+        # Only use if within reasonable time window (0.5 seconds)
+        if abs(closest.timestamp - timestamp) <= 0.5:
+            return closest
+        
+        return None
+    
+    def _generate_optimized_word_timings(
+        self,
+        words: List[str],
+        word_durations: List[float],
+        start_time: float,
+        segment_index: int,
+        emotion: EmotionCategory,
+        confidence: float,
+        detection_result: DetectionResult
+    ) -> List[WordTiming]:
+        """Generate word timings with object-aware positioning."""
+        word_timings = []
+        current_time = start_time
+        
+        # Estimate word sizes (simplified - in production, measure actual text)
+        word_sizes = []
+        for word in words:
+            # Rough estimation based on word length and font size
+            base_size = 30  # Base font size in pixels
+            width = len(word) * base_size * 0.6
+            height = base_size * 1.2
+            word_sizes.append((int(width), int(height)))
+        
+        # Get optimized positions for all words
+        optimized_positions = self.position_optimizer.optimize_word_positions(
+            words=words,
+            word_sizes=word_sizes,
+            detection_result=detection_result,
+            emotion=emotion,
+            animation_style=self.animation_style.value
+        )
+        
+        # Create word timings with optimized positions
+        for idx, (word, duration, opt_pos) in enumerate(
+            zip(words, word_durations, optimized_positions)
+        ):
+            is_emphasized = self._should_emphasize_word(word, emotion)
+            
+            # Convert absolute position to relative offset from center
+            center_x = self.video_resolution[0] / 2
+            center_y = self.video_resolution[1] / 2
+            x_offset = opt_pos.x + opt_pos.width / 2 - center_x
+            y_offset = opt_pos.y + opt_pos.height / 2 - center_y
+            
+            # Get size multiplier from emotion style
+            position_style = self.EMOTION_POSITION_STYLES.get(
+                emotion, 
+                self.EMOTION_POSITION_STYLES[EmotionCategory.NEUTRAL]
+            )
+            size_multiplier = position_style["size_base"]
+            if is_emphasized:
+                size_multiplier *= 1.2
+            
+            # Calculate rotation if needed
+            rotation = 0.0
+            if opt_pos.score < 0.5:  # Lower score means had to avoid objects
+                # Add slight rotation for dynamic feel
+                rotation = np.random.uniform(-5, 5)
+            
+            word_timing = WordTiming(
+                word=word,
+                start_time=current_time,
+                end_time=current_time + duration,
+                duration=duration,
+                segment_index=segment_index,
+                word_index=idx,
+                emotion=emotion,
+                confidence=confidence,
+                is_emphasized=is_emphasized,
+                position_offset=(x_offset, y_offset),
+                size_multiplier=size_multiplier,
+                rotation_angle=rotation,
+                custom_style={
+                    "optimization_score": opt_pos.score,
+                    "avoided_objects": len(detection_result.safe_zones)
+                }
+            )
+            
+            word_timings.append(word_timing)
+            current_time += duration
+        
+        return word_timings
 
     def generate_word_by_word_ass(
         self,
@@ -636,13 +776,13 @@ class WordTimingProcessor:
             Path to generated ASS file
         """
         from .subtitle import ASSGenerator
-        
+
         # Use provided resolution or default
         resolution = video_resolution or self.video_resolution
-        
+
         # Convert word segments to standard segments for ASS generation
         segments = []
-        
+
         for word_segment in word_segments:
             for word_timing in word_segment.words:
                 segment = {
@@ -662,7 +802,7 @@ class WordTimingProcessor:
                     }
                 }
                 segments.append(segment)
-        
+
         # Create caption data
         caption_data = {
             "segments": segments,
@@ -671,14 +811,14 @@ class WordTimingProcessor:
                 "animation_style": self.animation_style.value
             }
         }
-        
+
         # Generate ASS file
         ass_generator = ASSGenerator(
             platform=platform,
             style_intensity=style_intensity,
             video_resolution=resolution
         )
-        
+
         return ass_generator.generate_ass_file(
             caption_data,
             output_path,
@@ -701,44 +841,44 @@ class WordTimingProcessor:
             Modified segments with karaoke timing
         """
         karaoke_segments = []
-        
+
         for segment in segments:
             word_segments = self.process_segments([segment])
             if not word_segments:
                 continue
-                
+
             word_segment = word_segments[0]
-            
+
             # Create karaoke effect segments
             for i, word_timing in enumerate(word_segment.words):
                 # Build the full line with current word highlighted
                 words_before = [w.word for w in word_segment.words[:i]]
                 current_word = word_timing.word
                 words_after = [w.word for w in word_segment.words[i+1:]]
-                
+
                 # Create formatted text with karaoke effect
                 text_parts = []
-                
+
                 # Dimmed words before
                 if words_before:
                     text_parts.append(f"{{\\alpha&H80&}}{' '.join(words_before)}{{\\alpha&H00&}}")
-                
+
                 # Highlighted current word
                 text_parts.append(f"{{\\fscx120\\fscy120\\b1}}{current_word}{{\\r}}")
-                
+
                 # Normal words after
                 if words_after:
                     text_parts.append(' '.join(words_after))
-                
+
                 karaoke_segment = {
                     "start": word_timing.start_time,
                     "end": word_timing.start_time + highlight_duration,
                     "text": ' '.join(text_parts),
                     "emotion_metadata": segment.get("emotion_metadata", {})
                 }
-                
+
                 karaoke_segments.append(karaoke_segment)
-        
+
         return karaoke_segments
 
 
@@ -756,6 +896,59 @@ def enable_word_timestamps_in_whisper(whisper_options: Dict[str, Any]) -> Dict[s
     return whisper_options
 
 
+def create_object_aware_word_processor(
+    video_path: str,
+    platform: Platform = Platform.GENERAL,
+    enable_face_tracking: bool = True,
+    verbose: bool = False
+) -> WordTimingProcessor:
+    """
+    Create a word timing processor with object detection capabilities.
+    
+    Args:
+        video_path: Path to video file for analysis
+        platform: Target platform
+        enable_face_tracking: Enable face tracking
+        verbose: Enable verbose output
+        
+    Returns:
+        Configured WordTimingProcessor with object detection
+    """
+    from moviepy.editor import VideoFileClip
+    
+    # Get video resolution
+    with VideoFileClip(video_path) as video:
+        resolution = (int(video.w), int(video.h))
+    
+    # Initialize object detector
+    detector = ObjectDetector(
+        enable_face_detection=True,
+        enable_object_detection=True,
+        enable_text_detection=True,
+        tracking_enabled=enable_face_tracking,
+        verbose=verbose
+    )
+    
+    # Initialize position optimizer
+    optimizer = PositionOptimizer(
+        video_resolution=resolution,
+        platform=platform,
+        default_strategy=PositioningStrategy.DYNAMIC,
+        verbose=verbose
+    )
+    
+    # Create word processor with object detection
+    processor = WordTimingProcessor(
+        video_resolution=resolution,
+        platform=platform,
+        enable_object_detection=True,
+        object_detector=detector,
+        position_optimizer=optimizer
+    )
+    
+    return processor
+
+
 def create_word_emphasis_rules(
     emotion: EmotionCategory,
     custom_words: Optional[List[str]] = None
@@ -771,7 +964,7 @@ def create_word_emphasis_rules(
         Dictionary of emphasis rules
     """
     processor = WordTimingProcessor()
-    
+
     emphasis_rules = {
         "emotion": emotion.value,
         "default_words": processor.EMOTION_EMPHASIS_WORDS.get(emotion, []),
@@ -783,5 +976,5 @@ def create_word_emphasis_rules(
             "repeated_letters": emotion == EmotionCategory.EXCITED
         }
     }
-    
+
     return emphasis_rules

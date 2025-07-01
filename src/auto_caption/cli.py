@@ -27,6 +27,7 @@ from .video_merger import VideoMerger
 from .subtitle import ASSGenerator
 from .training import EmotionTrainer, TrainingConfig, DatasetBuilder, VideoAugmenter, AugmentationConfig
 from .word_timing import WordTimingProcessor, WordAnimationStyle
+from .object_detection import ObjectDetector
 
 console = Console()
 
@@ -90,11 +91,18 @@ def cli(ctx, config):
               default='typewriter', help='Word animation style')
 @click.option('--words-per-second', type=float, default=3.0,
               help='Reading speed for word timing (default: 3.0)')
+@click.option('--smart-positioning', is_flag=True, 
+              help='Enable object-aware caption positioning to avoid blocking faces and important objects')
+@click.option('--avoid-faces', is_flag=True,
+              help='Specifically avoid blocking faces (requires --smart-positioning)')
+@click.option('--object-detection-model', type=click.Choice(['small', 'medium', 'large']),
+              default='medium', help='Object detection model size (affects accuracy vs speed)')
 @click.pass_context
 def generate(ctx, video_file, model, format, output, language, task, verbose,
              temperature, threads, emotion_mode, emotion, style_intensity, platform,
-             word_by_word, word_animation, words_per_second):
-    """Generate captions for a single video file with optional emotion-adaptive text formatting."""
+             word_by_word, word_animation, words_per_second, smart_positioning,
+             avoid_faces, object_detection_model):
+    """Generate captions for a single video file with optional emotion-adaptive text formatting and smart object-aware positioning."""
     config = ctx.obj.get('config', {})
 
     # Use defaults from config if not specified
@@ -122,19 +130,18 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
 
     try:
         # Initialize caption generator
-        with console.status("[bold green]Loading Whisper model...", spinner="dots"):
-            # Enable word timestamps if word-by-word is requested
-            transcribe_options = {}
-            if word_by_word:
-                transcribe_options["word_timestamps"] = True
+        transcribe_options = {}
+        if word_by_word:
+            transcribe_options["word_timestamps"] = True
 
-            generator = CaptionGenerator(
-                model_name=model,
-                language=language if language != 'auto' else None,
-                task=task,
-                verbose=verbose,
-                threads=threads
-            )
+        generator = CaptionGenerator(
+            model_name=model,
+            language=language if language != 'auto' else None,
+            task=task,
+            verbose=verbose,
+            threads=threads,
+            enable_object_detection=smart_positioning
+        )
 
         # Generate captions
         console.print("[green]✓[/green] Model loaded successfully")
@@ -190,6 +197,7 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
                 video_file,
                 temperature=temperature,
                 progress_callback=lambda p: progress.update(task_id, completed=p),
+                enable_smart_positioning=smart_positioning,
                 **transcribe_options
             )
 
@@ -261,16 +269,38 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
         # Apply word-by-word timing if enabled
         if word_by_word:
             console.print("[yellow]Processing word-by-word timing...[/yellow]")
+            
+            # Get video resolution for word processor
+            video_info = get_video_info(video_file)
+            video_resolution = (video_info['video']['width'], video_info['video']['height'])
+            
+            # Initialize object detector if smart positioning is enabled
+            object_detector = None
+            if smart_positioning:
+                from .object_detection import ObjectDetector
+                object_detector = ObjectDetector(
+                    enable_face_detection=avoid_faces or True,
+                    enable_object_detection=True,
+                    model_size=object_detection_model,
+                    verbose=verbose
+                )
+                console.print("[dim]Smart positioning enabled - analyzing objects to avoid[/dim]")
+            
             word_processor = WordTimingProcessor(
                 animation_style=WordAnimationStyle(word_animation),
                 words_per_second=words_per_second,
-                enable_word_timestamps=True
+                enable_word_timestamps=True,
+                video_resolution=video_resolution,
+                platform=Platform(platform),
+                enable_object_detection=smart_positioning,
+                object_detector=object_detector
             )
 
             # Process segments into word timings
             word_segments = word_processor.process_segments(
                 result['segments'],
-                result.get('emotion_data')
+                result.get('emotion_data'),
+                detection_results=result.get('detection_results')
             )
 
             # Store word timing data
@@ -311,6 +341,8 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
             }
 
             console.print(f"[green]✓[/green] Word-by-word timing applied ({word_animation} style)")
+            if smart_positioning:
+                console.print("[green]✓[/green] Smart positioning applied to avoid blocking important objects")
 
         # Save outputs
         saved_files = []
@@ -369,11 +401,15 @@ def generate(ctx, video_file, model, format, output, language, task, verbose,
 @click.option('--word-animation', type=click.Choice(['typewriter', 'fade_in', 'pop_in', 'slide_in',
               'bounce_in', 'wave', 'random', 'karaoke', 'emphasis']),
               default='typewriter', help='Word animation style')
+@click.option('--smart-positioning', is_flag=True,
+              help='Enable object-aware caption positioning for all videos')
+@click.option('--object-detection-model', type=click.Choice(['small', 'medium', 'large']),
+              default='medium', help='Object detection model size')
 @click.pass_context
 def batch(ctx, directory, pattern, model, format, language, recursive,
           skip_existing, threads, emotion_mode, style_intensity, platform,
-          word_by_word, word_animation):
-    """Process multiple video files in batch with optional face-based emotion detection."""
+          word_by_word, word_animation, smart_positioning, object_detection_model):
+    """Process multiple video files in batch with optional face-based emotion detection and smart positioning."""
     config = ctx.obj.get('config', {})
 
     # Use defaults from config
@@ -431,7 +467,8 @@ def batch(ctx, directory, pattern, model, format, language, recursive,
             model_name=model,
             language=language if language != 'auto' else None,
             verbose=False,
-            threads=threads
+            threads=threads,
+            enable_object_detection=smart_positioning
         )
 
     console.print("[green]✓[/green] Model loaded successfully\n")
@@ -456,22 +493,44 @@ def batch(ctx, directory, pattern, model, format, language, recursive,
                 style_captions=emotion_mode != 'off',
                 style_intensity=StyleIntensity(style_intensity),
                 platform=Platform(platform),
+                enable_smart_positioning=smart_positioning,
                 **transcribe_options
             )
 
             # Apply word-by-word timing if enabled
             if word_by_word:
                 console.print(f"  [yellow]Processing word-by-word timing...[/yellow]")
+                
+                # Get video resolution
+                video_info = get_video_info(str(video_file))
+                video_resolution = (video_info['video']['width'], video_info['video']['height'])
+                
+                # Initialize object detector if smart positioning is enabled
+                object_detector = None
+                if smart_positioning:
+                    from .object_detection import ObjectDetector
+                    object_detector = ObjectDetector(
+                        enable_face_detection=True,
+                        enable_object_detection=True,
+                        model_size=object_detection_model,
+                        verbose=False
+                    )
+                
                 word_processor = WordTimingProcessor(
                     animation_style=WordAnimationStyle(word_animation),
                     words_per_second=3.0,  # Default reading speed
-                    enable_word_timestamps=True
+                    enable_word_timestamps=True,
+                    video_resolution=video_resolution,
+                    platform=Platform(platform),
+                    enable_object_detection=smart_positioning,
+                    object_detector=object_detector
                 )
 
                 # Process segments into word timings
                 word_segments = word_processor.process_segments(
                     result['segments'],
-                    result.get('emotion_data')
+                    result.get('emotion_data'),
+                    detection_results=result.get('detection_results')
                 )
 
                 # Store word timing data

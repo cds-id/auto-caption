@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  jupyter-auto-caption:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: auto-caption-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount the entire project for development
+      - ./:/workspace/auto-caption:rw
+      # Persistent notebooks directory
+      - ./notebooks:/workspace/notebooks:rw
+      # Mount data directory for videos and outputs
+      - ./data:/workspace/data:rw
+      # Cache directory for models
+      - ./cache:/root/.cache:rw
+    environment:
+      # Jupyter settings
+      - JUPYTER_ENABLE_LAB=yes
+      - GRANT_SUDO=yes
+      # CUDA settings (if using GPU)
+      - NVIDIA_VISIBLE_DEVICES=all
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      # Auto-caption settings
+      - TORCH_HOME=/root/.cache/torch
+      - HF_HOME=/root/.cache/huggingface
+    restart: unless-stopped
+    # Uncomment the following lines if you have NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: Add a separate service for processing videos
+  auto-caption-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: auto-caption-worker
+    volumes:
+      - ./:/workspace/auto-caption:rw
+      - ./data:/workspace/data:rw
+      - ./cache:/root/.cache:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TORCH_HOME=/root/.cache/torch
+      - HF_HOME=/root/.cache/huggingface
+    command: ["python", "-m", "auto_caption.cli", "--help"]
+    profiles:
+      - worker
+
+# Create named volumes for persistence
+volumes:
+  notebooks:
+    driver: local
+  data:
+    driver: local
+  cache:
+    driver: local

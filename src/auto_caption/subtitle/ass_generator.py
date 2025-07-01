@@ -90,37 +90,37 @@ class ASSGenerator:
     # Emotion-specific position and size adjustments
     EMOTION_ADJUSTMENTS = {
         EmotionCategory.HAPPY: {
-            "size_multiplier": 1.3,  # Bigger and bolder
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": -60,  # Much higher on screen - jumping with joy
             "alignment": 8  # Top center - happiness rises
         },
         EmotionCategory.SAD: {
-            "size_multiplier": 0.75,  # Smaller, diminished
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": 80,  # Much lower on screen - weighted down
             "alignment": 2  # Bottom center
         },
         EmotionCategory.ANGRY: {
-            "size_multiplier": 1.5,  # Very large and aggressive
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": -40,  # Higher, dominating presence
             "alignment": 5  # Center of screen - confrontational
         },
         EmotionCategory.EXCITED: {
-            "size_multiplier": 1.35,  # Large and energetic
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": -70,  # Very high - bouncing with excitement
             "alignment": 8  # Top center
         },
         EmotionCategory.FEARFUL: {
-            "size_multiplier": 0.8,  # Smaller, shrinking
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": 50,  # Lower, hiding
             "alignment": 1  # Bottom left - cornered
         },
         EmotionCategory.SARCASTIC: {
-            "size_multiplier": 1.1,  # Slightly larger for emphasis
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": -10,  # Slightly off-center
             "alignment": 6  # Middle right - sideways delivery
         },
         EmotionCategory.ANXIOUS: {
-            "size_multiplier": 0.85,  # Smaller, uncertain
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": 30,  # Lower middle
             "alignment": 5  # Center - frozen in place
         },
@@ -130,9 +130,74 @@ class ASSGenerator:
             "alignment": 2  # Bottom center - default
         },
         EmotionCategory.CONTEMPLATIVE: {
-            "size_multiplier": 0.9,  # Slightly smaller, introspective
+            "size_multiplier": 1.0,  # Consistent size across all emotions
             "position_adjustment": -30,  # Slightly higher - thoughtful
             "alignment": 8  # Top center - looking up/thinking
+        },
+        EmotionCategory.SURPRISED: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -50,  # Higher - jumping in surprise
+            "alignment": 8  # Top center
+        },
+        EmotionCategory.DISGUSTED: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": 20,  # Lower middle - recoiling
+            "alignment": 4  # Middle left - turning away
+        },
+        EmotionCategory.IRONIC: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -15,  # Slightly off-center
+            "alignment": 6  # Middle right - sideways glance
+        },
+        EmotionCategory.MELANCHOLIC: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": 60,  # Lower - heavy feeling
+            "alignment": 2  # Bottom center
+        },
+        EmotionCategory.CONFIDENT: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -20,  # Slightly elevated - standing tall
+            "alignment": 5  # Center - direct and bold
+        },
+        EmotionCategory.CONFUSED: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": 10,  # Slightly lower - uncertain
+            "alignment": 5  # Center - questioning
+        },
+        EmotionCategory.MOTIVATIONAL: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -45,  # High - uplifting
+            "alignment": 8  # Top center - inspiring
+        },
+        EmotionCategory.HUMOROUS: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -25,  # Slightly high - light-hearted
+            "alignment": 5  # Center
+        },
+        EmotionCategory.DRAMATIC: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -35,  # Higher - theatrical presence
+            "alignment": 5  # Center - commanding attention
+        },
+        EmotionCategory.CASUAL: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": 0,  # Standard position - relaxed
+            "alignment": 2  # Bottom center
+        },
+        EmotionCategory.PROFESSIONAL: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -10,  # Slightly elevated - formal
+            "alignment": 2  # Bottom center - standard
+        },
+        EmotionCategory.ROMANTIC: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -40,  # Higher - dreamy
+            "alignment": 8  # Top center - floating
+        },
+        EmotionCategory.NOSTALGIC: {
+            "size_multiplier": 1.0,  # Consistent size across all emotions
+            "position_adjustment": -20,  # Slightly higher - reminiscent
+            "alignment": 8  # Top center - looking back
         }
     }
 
@@ -141,8 +206,8 @@ class ASSGenerator:
         EmotionCategory.HAPPY: {
             "primary": "&H0000FFFF",    # Bright sunny yellow
             "secondary": "&H0000D4FF",  # Golden yellow
-            "outline": "&H00FF6600",    # Warm orange outline
-            "shadow": "&H60FF8800"      # Orange shadow with glow
+            "outline": "&H00202020",    # Standard outline
+            "shadow": "&H80000000"      # Standard shadow
         },
         EmotionCategory.SAD: {
             "primary": "&H00FF9966",    # Deep ocean blue
@@ -191,6 +256,84 @@ class ASSGenerator:
             "secondary": "&H00C4A685",  # Wise purple-gray
             "outline": "&H00665544",    # Deep thought edge
             "shadow": "&H90554433"      # Soft shadow
+        },
+        EmotionCategory.SURPRISED: {
+            "primary": "&H00FFCCFF",    # Bright pink-white shock
+            "secondary": "&H00FFAAFF",  # Electric pink
+            "outline": "&H00AA66AA",    # Purple edge
+            "shadow": "&H80CC88CC"      # Pink glow
+        },
+        EmotionCategory.DISGUSTED: {
+            "primary": "&H0066AA88",    # Sickly green
+            "secondary": "&H00558877",  # Murky green
+            "outline": "&H00334433",    # Dark swamp
+            "shadow": "&HA0445544"      # Heavy shadow
+        },
+        EmotionCategory.IRONIC: {
+            "primary": "&H0099FFDD",    # Cyan-green twist
+            "secondary": "&H0077DDBB",  # Teal irony
+            "outline": "&H00446655",    # Dark teal edge
+            "shadow": "&H80668877"      # Twisted shadow
+        },
+        EmotionCategory.MELANCHOLIC: {
+            "primary": "&H00CC9988",    # Dusty blue-gray
+            "secondary": "&H00AA8877",  # Faded memories
+            "outline": "&H00554444",    # Dark gray edge
+            "shadow": "&HA0665555"      # Heavy melancholy
+        },
+        EmotionCategory.CONFIDENT: {
+            "primary": "&H00FFFFFF",    # Pure white - strong and clear
+            "secondary": "&H00F0F0F0",  # Bright white
+            "outline": "&H00303030",    # Bold outline
+            "shadow": "&H60000000"      # Sharp shadow
+        },
+        EmotionCategory.CONFUSED: {
+            "primary": "&H00CCCCCC",    # Gray uncertainty
+            "secondary": "&H00AAAAAA",  # Lighter gray
+            "outline": "&H00666666",    # Foggy edge
+            "shadow": "&H90888888"      # Blurred shadow
+        },
+        EmotionCategory.MOTIVATIONAL: {
+            "primary": "&H0000CCFF",    # Bright orange-gold
+            "secondary": "&H0000AADD",  # Energizing orange
+            "outline": "&H00005588",    # Strong edge
+            "shadow": "&H60006699"      # Uplifting glow
+        },
+        EmotionCategory.HUMOROUS: {
+            "primary": "&H0099FFFF",    # Light yellow-green
+            "secondary": "&H0077DDDD",  # Playful lime
+            "outline": "&H00448844",    # Fun green edge
+            "shadow": "&H80559955"      # Light shadow
+        },
+        EmotionCategory.DRAMATIC: {
+            "primary": "&H00CC00FF",    # Deep purple-red
+            "secondary": "&H00AA00DD",  # Royal purple
+            "outline": "&H00660099",    # Dark dramatic edge
+            "shadow": "&HFF8800BB"      # Dramatic glow
+        },
+        EmotionCategory.CASUAL: {
+            "primary": "&H00FFFFFF",    # Plain white - common subtitle
+            "secondary": "&H00F0F0F0",  # Soft white
+            "outline": "&H00202020",    # Standard gray outline
+            "shadow": "&H80000000"      # Standard shadow
+        },
+        EmotionCategory.PROFESSIONAL: {
+            "primary": "&H00FFFFFF",    # Clean white - formal
+            "secondary": "&H00F5F5F5",  # Pure white
+            "outline": "&H00181818",    # Sharp outline
+            "shadow": "&H80000000"      # Professional shadow
+        },
+        EmotionCategory.ROMANTIC: {
+            "primary": "&H00FFCCEE",    # Soft pink-rose
+            "secondary": "&H00FFAADD",  # Warm pink
+            "outline": "&H00AA6688",    # Rose edge
+            "shadow": "&H80CC8899"      # Soft romantic glow
+        },
+        EmotionCategory.NOSTALGIC: {
+            "primary": "&H00DDCCBB",    # Sepia-tinted cream
+            "secondary": "&H00CCBBAA",  # Vintage beige
+            "outline": "&H00776655",    # Old photo edge
+            "shadow": "&H90887766"      # Faded shadow
         }
     }
 
@@ -453,6 +596,132 @@ class ASSGenerator:
                 "outline_mult": 0.9,
                 "shadow_mult": 1.0,
                 "blur_mult": 1.2  # Soft focus
+            },
+            EmotionCategory.NEUTRAL: {
+                "bold": 0,
+                "italic": 0,
+                "scale_x": 100,  # Standard size
+                "scale_y": 100,  # Standard size
+                "outline_mult": 1.0,  # Standard outline
+                "shadow_mult": 1.0,  # Standard shadow
+                "blur_mult": 0.0  # Clear like common subtitles
+            },
+            EmotionCategory.SURPRISED: {
+                "bold": 1,  # Bold for impact
+                "italic": 0,
+                "scale_x": 118,  # Wide eyes effect
+                "scale_y": 122,  # Tall for shock
+                "outline_mult": 1.6,
+                "shadow_mult": 1.7,  # Strong shadow
+                "blur_mult": 0.4  # Sharp surprise
+            },
+            EmotionCategory.DISGUSTED: {
+                "bold": 0,
+                "italic": 1,  # Recoiling
+                "scale_x": 88,  # Pulling back
+                "scale_y": 92,  # Shrinking away
+                "outline_mult": 0.8,
+                "shadow_mult": 0.9,
+                "blur_mult": 1.3  # Slightly nauseous blur
+            },
+            EmotionCategory.IRONIC: {
+                "bold": 0,
+                "italic": 1,  # Sideways delivery
+                "scale_x": 108,  # Slightly stretched
+                "scale_y": 98,  # Slightly compressed
+                "outline_mult": 1.1,
+                "shadow_mult": 1.2,
+                "blur_mult": 0.5  # Clear irony
+            },
+            EmotionCategory.MELANCHOLIC: {
+                "bold": 0,
+                "italic": 1,  # Drooping
+                "scale_x": 90,  # Compressed
+                "scale_y": 94,  # Weighted down
+                "outline_mult": 0.7,
+                "shadow_mult": 0.8,
+                "blur_mult": 1.6  # Hazy memories
+            },
+            EmotionCategory.CONFIDENT: {
+                "bold": 1,  # Strong presence
+                "italic": 0,
+                "scale_x": 105,  # Slightly wider
+                "scale_y": 105,  # Standing tall
+                "outline_mult": 1.3,
+                "shadow_mult": 1.2,
+                "blur_mult": 0.0  # Crystal clear
+            },
+            EmotionCategory.CONFUSED: {
+                "bold": 0,
+                "italic": 0,
+                "scale_x": 96,  # Slightly uncertain
+                "scale_y": 98,  # Questioning
+                "outline_mult": 0.9,
+                "shadow_mult": 1.0,
+                "blur_mult": 1.4  # Foggy confusion
+            },
+            EmotionCategory.MOTIVATIONAL: {
+                "bold": 1,  # Strong and inspiring
+                "italic": 0,
+                "scale_x": 112,  # Expanding energy
+                "scale_y": 110,  # Uplifting
+                "outline_mult": 1.4,
+                "shadow_mult": 1.5,
+                "blur_mult": 0.2  # Sharp focus
+            },
+            EmotionCategory.HUMOROUS: {
+                "bold": 0,
+                "italic": 0,
+                "scale_x": 103,  # Slightly playful
+                "scale_y": 102,  # Light bounce
+                "outline_mult": 1.1,
+                "shadow_mult": 1.2,
+                "blur_mult": 0.6  # Clear humor
+            },
+            EmotionCategory.DRAMATIC: {
+                "bold": 1,  # Theatrical presence
+                "italic": 0,
+                "scale_x": 125,  # Wide dramatic effect
+                "scale_y": 118,  # Commanding height
+                "outline_mult": 1.8,
+                "shadow_mult": 2.0,  # Deep theatrical shadow
+                "blur_mult": 0.3  # Sharp drama
+            },
+            EmotionCategory.CASUAL: {
+                "bold": 0,
+                "italic": 0,
+                "scale_x": 100,  # Standard size
+                "scale_y": 100,  # Standard size
+                "outline_mult": 1.0,  # Standard outline
+                "shadow_mult": 1.0,  # Standard shadow
+                "blur_mult": 0.0  # Clear like common subtitles
+            },
+            EmotionCategory.PROFESSIONAL: {
+                "bold": 0,
+                "italic": 0,
+                "scale_x": 100,  # Standard size
+                "scale_y": 100,  # Standard size
+                "outline_mult": 1.0,  # Standard outline
+                "shadow_mult": 1.0,  # Standard shadow
+                "blur_mult": 0.0  # Clear like common subtitles
+            },
+            EmotionCategory.ROMANTIC: {
+                "bold": 0,
+                "italic": 1,  # Soft romantic slant
+                "scale_x": 98,  # Gentle
+                "scale_y": 103,  # Slightly dreamy
+                "outline_mult": 0.8,
+                "shadow_mult": 1.1,  # Soft glow
+                "blur_mult": 0.8  # Soft romantic focus
+            },
+            EmotionCategory.NOSTALGIC: {
+                "bold": 0,
+                "italic": 1,  # Looking back
+                "scale_x": 94,  # Fading memories
+                "scale_y": 97,  # Slightly smaller
+                "outline_mult": 0.7,
+                "shadow_mult": 0.9,
+                "blur_mult": 1.5  # Hazy memories
             }
         }
 

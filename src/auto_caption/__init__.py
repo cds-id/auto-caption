@@ -17,6 +17,19 @@ from .caption_styler import CaptionStyler, StyleIntensity, Platform, EmotionStyl
 from .video_merger import VideoMerger
 from .subtitle import ASSGenerator, ASSStyle
 from .word_timing import WordTimingProcessor, WordAnimationStyle, WordTiming, WordSegment
+from .object_detection import (
+    ObjectDetector,
+    DetectedObject,
+    ObjectType,
+    DetectionResult,
+    SafeZone,
+    PositionOptimizer,
+    PositionConstraint,
+    OptimizationResult,
+    FaceTracker,
+    TrackedFace,
+    FaceTrackingResult
+)
 
 __all__ = [
     "CaptionGenerator",
@@ -39,6 +52,17 @@ __all__ = [
     "WordAnimationStyle",
     "WordTiming",
     "WordSegment",
+    "ObjectDetector",
+    "DetectedObject",
+    "ObjectType",
+    "DetectionResult",
+    "SafeZone",
+    "PositionOptimizer",
+    "PositionConstraint",
+    "OptimizationResult",
+    "FaceTracker",
+    "TrackedFace",
+    "FaceTrackingResult",
     "__version__",
     "__author__",
     "__email__",

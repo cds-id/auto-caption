@@ -24,6 +24,12 @@ from .utils import (
 )
 from .emotion_detector import EmotionDetector, EmotionDetectionResult
 from .caption_styler import CaptionStyler, StyleIntensity, Platform
+from .object_detection import (
+    ObjectDetector,
+    DetectionResult,
+    PositionOptimizer,
+    FaceTracker
+)
 
 
 class CaptionGenerator:
@@ -41,7 +47,10 @@ class CaptionGenerator:
         device: Optional[str] = None,
         enable_emotion_detection: bool = False,
         emotion_detector: Optional[EmotionDetector] = None,
-        caption_styler: Optional[CaptionStyler] = None
+        caption_styler: Optional[CaptionStyler] = None,
+        enable_object_detection: bool = False,
+        object_detector: Optional[ObjectDetector] = None,
+        face_tracker: Optional[FaceTracker] = None
     ):
         """
         Initialize the caption generator.
@@ -63,6 +72,9 @@ class CaptionGenerator:
         self.enable_emotion_detection = enable_emotion_detection
         self.emotion_detector = emotion_detector
         self.caption_styler = caption_styler
+        self.enable_object_detection = enable_object_detection
+        self.object_detector = object_detector
+        self.face_tracker = face_tracker
 
         # Load Whisper model
         self._load_model()
@@ -94,6 +106,7 @@ class CaptionGenerator:
         style_intensity: Optional[StyleIntensity] = None,
         platform: Optional[Platform] = None,
         word_timestamps: bool = False,
+        enable_smart_positioning: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -107,6 +120,7 @@ class CaptionGenerator:
             style_captions: Whether to apply emotion-aware styling
             style_intensity: Styling intensity (if style_captions is True)
             platform: Target platform for styling
+            enable_smart_positioning: Enable object-aware positioning
             **kwargs: Additional arguments for Whisper
 
         Returns:
@@ -115,6 +129,31 @@ class CaptionGenerator:
         # Update progress
         if progress_callback:
             progress_callback(0)
+
+        # Run object detection if enabled for smart positioning
+        detection_results = []
+        if (self.enable_object_detection or enable_smart_positioning) and word_timestamps:
+            if self.verbose:
+                print("Analyzing video for smart caption positioning...")
+            
+            # Initialize object detector if needed
+            if self.object_detector is None:
+                self.object_detector = ObjectDetector(
+                    enable_face_detection=True,
+                    enable_object_detection=True,
+                    tracking_enabled=True,
+                    verbose=self.verbose
+                )
+            
+            # Initialize face tracker if needed
+            if self.face_tracker is None:
+                self.face_tracker = FaceTracker(verbose=self.verbose)
+            
+            # Sample frames for object detection
+            detection_results = self._analyze_video_objects(video_path, progress_callback)
+            
+            if progress_callback:
+                progress_callback(10)
 
         # Extract audio from video
         if self.verbose:
@@ -211,7 +250,79 @@ class CaptionGenerator:
             if progress_callback:
                 progress_callback(100)
 
+            # Store detection results if available
+            if detection_results:
+                result["detection_results"] = detection_results
+                result["smart_positioning_enabled"] = True
+
             return result
+
+    def _analyze_video_objects(
+        self,
+        video_path: str,
+        progress_callback: Optional[callable] = None
+    ) -> List[DetectionResult]:
+        """Analyze video to detect objects for smart positioning."""
+        import cv2
+        from moviepy.editor import VideoFileClip
+        
+        detection_results = []
+        
+        # Get video info
+        with VideoFileClip(video_path) as video:
+            fps = video.fps
+            duration = video.duration
+            total_frames = int(fps * duration)
+        
+        # Sample frames at regular intervals
+        sample_interval = max(1, int(fps * 0.5))  # Sample every 0.5 seconds
+        
+        cap = cv2.VideoCapture(video_path)
+        frame_count = 0
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            if frame_count % sample_interval == 0:
+                # Detect objects in frame
+                timestamp = frame_count / fps
+                detection_result = self.object_detector.detect_objects(
+                    frame,
+                    frame_index=frame_count,
+                    timestamp=timestamp
+                )
+                
+                # Update face tracking
+                if self.face_tracker:
+                    face_objects = [obj for obj in detection_result.objects 
+                                  if obj.type.value == "face"]
+                    tracking_result = self.face_tracker.update(
+                        face_objects,
+                        frame,
+                        frame_count
+                    )
+                    
+                    # Add tracking info to detection result
+                    detection_result.metadata = {
+                        "tracking": tracking_result
+                    }
+                
+                detection_results.append(detection_result)
+                
+                if progress_callback and frame_count % (sample_interval * 10) == 0:
+                    progress = (frame_count / total_frames) * 10  # 0-10% of total progress
+                    progress_callback(progress)
+            
+            frame_count += 1
+        
+        cap.release()
+        
+        if self.verbose:
+            print(f"Analyzed {len(detection_results)} frames for object detection")
+        
+        return detection_results
 
     def _post_process_result(self, result: Dict[str, Any], duration: float) -> Dict[str, Any]:
         """
