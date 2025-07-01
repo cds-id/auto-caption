@@ -1,34 +1,40 @@
 
-# Auto-Caption: Emotion-Aware Caption Generation for Short-Form Videos
+# Auto-Caption: Emotion-Adaptive Caption Generation for Short-Form Videos
 
-An advanced AI-powered tool that generates emotionally-intelligent captions for short-form video content. Unlike traditional speech-to-text tools, Auto-Caption understands the emotional context of your video and creates captions that match not just what is said, but *how* it's said.
+An advanced AI-powered tool that generates emotionally-adaptive captions for short-form video content. Unlike traditional speech-to-text tools, Auto-Caption analyzes facial expressions to understand emotional context and formats captions with appropriate punctuation, capitalization, and emphasis to match not just what is said, but *how* it's said.
 
 ## 🎯 Project Vision
 
 In the era of TikTok, Instagram Reels, and YouTube Shorts, captions have evolved beyond mere accessibility tools. They've become an integral part of the creative language, used to:
-- Guide viewer interpretation
-- Add humor and emphasis
-- Match the emotional tone of the content
-- Enhance narrative meaning
+- Guide viewer interpretation through punctuation and emphasis
+- Convey emotional tone through text formatting
+- Match the speaker's emotional state
+- Enhance narrative meaning without visual distractions
 
-However, existing captioning tools fall short by focusing solely on literal transcription accuracy, missing the emotional nuances that make content engaging. Auto-Caption bridges this gap by combining computer vision for emotion detection with natural language processing for emotionally-aware text generation.
+However, existing captioning tools fall short by focusing solely on literal transcription accuracy, missing the emotional nuances that make content engaging. Auto-Caption bridges this gap by using face-based emotion detection to adaptively format text with appropriate punctuation, capitalization, and emphasis patterns.
 
 ## 🌟 Key Features
 
-### Emotion-Aware Generation
-- **Contextual Understanding**: Analyzes video content to detect emotional tone
-- **Adaptive Styling**: Generates captions that match the detected emotion
-- **Nuanced Expression**: Differentiates between sad, sarcastic, happy, or neutral delivery of the same words
+### Emotion-Adaptive Formatting
+- **Face-Based Detection**: Analyzes facial expressions every 0.5 seconds for accurate emotion tracking
+- **Adaptive Text Formatting**: Formats captions with emotion-appropriate punctuation and capitalization
+- **Nuanced Expression**: Same words formatted differently based on detected emotion (e.g., "great" vs "GREAT!" vs "great...")
 
 ### Multi-Modal Analysis
-- **Visual Emotion Detection**: Analyzes facial expressions, body language, and scene context
-- **Audio Sentiment Analysis**: Detects tone, pitch, and emotional cues in speech
-- **Contextual Integration**: Combines visual and audio signals for accurate emotion detection
+- **Primary Face Detection**: Analyzes facial expressions with 85% weight for emotion detection
+- **Supplementary Audio Analysis**: Uses voice tone as 15% supplementary data
+- **Temporal Tracking**: Maintains emotion continuity across frames for smooth transitions
 
-### Creative Caption Styling
-- **Dynamic Text Effects**: Suggests appropriate text animations based on emotion
-- **Punctuation & Emphasis**: Intelligently adds punctuation, capitalization, and emphasis
-- **Timing Optimization**: Aligns caption timing with emotional beats
+### Intelligent Text Formatting
+- **Emotion-Based Punctuation**: Adds appropriate punctuation (!!!, ..., ?!) based on emotion
+- **Adaptive Capitalization**: Uses CAPS, Mixed Case, or lowercase to convey tone
+- **Natural Emphasis**: Emphasizes key words based on emotional intensity
+
+### Advanced Subtitle Support
+- **ASS Format**: Rich subtitle formatting with emotion-based colors, fonts, and effects
+- **Style Presets**: Platform-optimized subtitle styles for TikTok, Instagram, YouTube
+- **FFmpeg Integration**: Reliable subtitle burning with high performance
+- **Fallback Support**: OpenCV renderer when ffmpeg is unavailable
 
 ### Platform Optimization
 - **Format Support**: Exports for TikTok, Instagram Reels, YouTube Shorts
@@ -97,6 +103,32 @@ auto-caption generate video.mp4 --emotion-mode auto
 ```bash
 # Force a specific emotion style
 auto-caption generate video.mp4 --emotion-mode manual --emotion happy --style-intensity intense
+```
+
+### Advanced Caption Styling
+
+#### Generate Styled Subtitles (ASS Format)
+```bash
+# Export emotion-styled ASS subtitles
+auto-caption export-subtitles video.json --format ass --platform tiktok
+
+# Export both ASS and SRT formats
+auto-caption export-subtitles video.json --format both
+
+# Custom resolution for subtitle scaling
+auto-caption export-subtitles video.json --video-file video.mp4 --style-intensity intense
+```
+
+#### Merge Captions with Video
+```bash
+# Merge using ASS subtitles (recommended)
+auto-caption merge video.mp4 video.json --subtitle-format ass
+
+# Platform-specific optimization
+auto-caption merge video.mp4 video.json --platform tiktok --quality high
+
+# Quick preview with lower quality
+auto-caption merge video.mp4 video.json --preview
 
 # Available emotions:
 # happy, sad, angry, sarcastic, anxious, neutral, excited, contemplative

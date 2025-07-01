@@ -188,8 +188,8 @@ class CaptionGenerator:
                             emotion_result.temporal_emotions
                         )
                         
-                        # Apply styling
-                        styled = self.caption_styler.style_caption(
+                        # Apply formatting
+                        formatted = self.caption_styler.style_caption(
                             segment["text"],
                             segment_emotion["emotion"],
                             segment_emotion["confidence"],
@@ -199,11 +199,11 @@ class CaptionGenerator:
                         
                         # Update segment
                         segment["original_text"] = segment["text"]
-                        segment["text"] = styled["styled_text"]
+                        segment["text"] = formatted["formatted_text"]
                         segment["emotion_metadata"] = {
-                            "emotion": styled["emotion"],
-                            "confidence": styled["confidence"],
-                            "visual_suggestions": styled.get("visual_suggestions", {})
+                            "emotion": formatted["emotion"],
+                            "confidence": formatted["confidence"],
+                            "formatting": formatted.get("formatting_metadata", {})
                         }
             
             if progress_callback:

@@ -1,8 +1,8 @@
 """
-Caption styling module for emotion-aware text generation.
+Caption styling module for emotion-aware text formatting.
 
-This module transforms plain transcriptions into emotionally-styled captions
-that match the detected emotional context of the video.
+This module transforms plain transcriptions into emotionally-formatted captions
+that convey emotion through punctuation, capitalization, and text emphasis.
 """
 
 import re
@@ -16,7 +16,7 @@ from .emotion_detector import EmotionCategory, EmotionDetectionResult
 
 
 class StyleIntensity(Enum):
-    """Intensity levels for caption styling."""
+    """Intensity levels for text formatting."""
     SUBTLE = "subtle"
     MEDIUM = "medium"
     INTENSE = "intense"
@@ -30,190 +30,172 @@ class Platform(Enum):
     GENERAL = "general"
 
 
-@dataclass
-class CaptionStyle:
-    """Style configuration for captions."""
-    emotion: EmotionCategory
-    intensity: StyleIntensity
-    platform: Platform
-    
-    # Text transformations
-    capitalization: str  # 'normal', 'upper', 'lower', 'mixed', 'emphasis'
-    punctuation_style: str  # 'normal', 'minimal', 'excessive', 'dramatic'
-    emoji_usage: str  # 'none', 'subtle', 'moderate', 'heavy'
-    
-    # Timing adjustments
-    timing_offset: float  # Seconds to adjust timing
-    duration_multiplier: float  # Multiply segment duration
-    
-    # Visual suggestions
-    suggested_effects: List[str]
-    suggested_font_style: str
-    suggested_color_scheme: Dict[str, str]
-
-
 class EmotionStyleMap:
-    """Mapping of emotions to caption styles."""
-    
+    """Mapping of emotions to text formatting styles."""
+
     STYLE_TEMPLATES = {
         EmotionCategory.HAPPY: {
             "subtle": {
                 "capitalization": "normal",
                 "punctuation_style": "normal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["😊", "🙂", "✨"],
-                "punctuation_marks": ["!", "!!"],
-                "text_modifiers": []
+                "punctuation_marks": ["!", "."],
+                "text_emphasis": "none"
             },
             "medium": {
                 "capitalization": "emphasis",
-                "punctuation_style": "dramatic",
-                "emoji_usage": "moderate",
-                "emoji_set": ["😄", "🎉", "💫", "⭐", "🌟"],
-                "punctuation_marks": ["!!", "!!!", "~"],
-                "text_modifiers": ["*", "~"]
+                "punctuation_style": "enthusiastic",
+                "punctuation_marks": ["!", "!!"],
+                "text_emphasis": "moderate"
             },
             "intense": {
-                "capitalization": "upper",
-                "punctuation_style": "excessive",
-                "emoji_usage": "heavy",
-                "emoji_set": ["🤩", "🎊", "🎈", "🌈", "💖", "🔥"],
-                "punctuation_marks": ["!!!", "!!!!"],
-                "text_modifiers": ["***", "~~~"]
+                "capitalization": "emphasis",
+                "punctuation_style": "very_enthusiastic",
+                "punctuation_marks": ["!!", "!!!"],
+                "text_emphasis": "strong"
             }
         },
         EmotionCategory.SAD: {
             "subtle": {
                 "capitalization": "lower",
                 "punctuation_style": "minimal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["💭", "🌧️"],
                 "punctuation_marks": [".", "..."],
-                "text_modifiers": []
+                "text_emphasis": "none"
             },
             "medium": {
                 "capitalization": "lower",
-                "punctuation_style": "dramatic",
-                "emoji_usage": "moderate",
-                "emoji_set": ["😢", "💔", "🥺", "☔"],
-                "punctuation_marks": ["...", "...."],
-                "text_modifiers": ["*"]
+                "punctuation_style": "trailing",
+                "punctuation_marks": ["...", "..."],
+                "text_emphasis": "minimal"
             },
             "intense": {
                 "capitalization": "lower",
-                "punctuation_style": "minimal",
-                "emoji_usage": "heavy",
-                "emoji_set": ["😭", "💔", "😔", "🌧️", "⛈️"],
-                "punctuation_marks": ["....", "....."],
-                "text_modifiers": []
+                "punctuation_style": "heavy_trailing",
+                "punctuation_marks": ["...", "...."],
+                "text_emphasis": "none"
             }
         },
         EmotionCategory.ANGRY: {
             "subtle": {
                 "capitalization": "emphasis",
-                "punctuation_style": "normal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["😤", "💢"],
+                "punctuation_style": "firm",
                 "punctuation_marks": [".", "!"],
-                "text_modifiers": []
+                "text_emphasis": "moderate"
             },
             "medium": {
                 "capitalization": "upper",
-                "punctuation_style": "dramatic",
-                "emoji_usage": "moderate",
-                "emoji_set": ["😠", "😡", "🔥", "💥"],
+                "punctuation_style": "forceful",
                 "punctuation_marks": ["!", "!!"],
-                "text_modifiers": ["**"]
+                "text_emphasis": "strong"
             },
             "intense": {
                 "capitalization": "upper",
-                "punctuation_style": "excessive",
-                "emoji_usage": "heavy",
-                "emoji_set": ["🤬", "😡", "👿", "🔥", "⚡", "💣"],
-                "punctuation_marks": ["!!!", "!!!!"],
-                "text_modifiers": ["***"]
+                "punctuation_style": "very_forceful",
+                "punctuation_marks": ["!!", "!!!"],
+                "text_emphasis": "very_strong"
             }
         },
         EmotionCategory.SARCASTIC: {
             "subtle": {
                 "capitalization": "mixed",
-                "punctuation_style": "normal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["🙃", "😏"],
-                "punctuation_marks": [".", "~"],
-                "text_modifiers": ["*"]
+                "punctuation_style": "ironic",
+                "punctuation_marks": [".", "..."],
+                "text_emphasis": "subtle_ironic"
             },
             "medium": {
                 "capitalization": "mixed",
-                "punctuation_style": "dramatic",
-                "emoji_usage": "moderate",
-                "emoji_set": ["🙄", "😏", "🤔", "💅"],
-                "punctuation_marks": ["~", "~~"],
-                "text_modifiers": ["*", "~"]
+                "punctuation_style": "very_ironic",
+                "punctuation_marks": ["...", "?"],
+                "text_emphasis": "ironic"
             },
             "intense": {
                 "capitalization": "mixed",
-                "punctuation_style": "excessive",
-                "emoji_usage": "heavy",
-                "emoji_set": ["🙄", "😤", "🤡", "💀", "☠️"],
-                "punctuation_marks": ["~~~", "~!~"],
-                "text_modifiers": ["***", "~~~"]
+                "punctuation_style": "heavily_ironic",
+                "punctuation_marks": ["...", "...?"],
+                "text_emphasis": "strong_ironic"
             }
         },
         EmotionCategory.ANXIOUS: {
             "subtle": {
                 "capitalization": "normal",
-                "punctuation_style": "minimal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["😰", "😟"],
+                "punctuation_style": "uncertain",
                 "punctuation_marks": ["?", "..."],
-                "text_modifiers": []
+                "text_emphasis": "nervous"
             },
             "medium": {
                 "capitalization": "lower",
-                "punctuation_style": "dramatic",
-                "emoji_usage": "moderate",
-                "emoji_set": ["😰", "😨", "🫨", "💭"],
-                "punctuation_marks": ["??", "...?"],
-                "text_modifiers": ["*"]
+                "punctuation_style": "questioning",
+                "punctuation_marks": ["?", "...?"],
+                "text_emphasis": "nervous"
             },
             "intense": {
                 "capitalization": "mixed",
-                "punctuation_style": "excessive",
-                "emoji_usage": "heavy",
-                "emoji_set": ["😱", "🫨", "😰", "💀", "🆘"],
-                "punctuation_marks": ["???", "?!?"],
-                "text_modifiers": ["**"]
+                "punctuation_style": "very_uncertain",
+                "punctuation_marks": ["??", "?!"],
+                "text_emphasis": "very_nervous"
             }
         },
         EmotionCategory.NEUTRAL: {
             "subtle": {
                 "capitalization": "normal",
                 "punctuation_style": "normal",
-                "emoji_usage": "none",
-                "emoji_set": [],
                 "punctuation_marks": ["."],
-                "text_modifiers": []
+                "text_emphasis": "none"
             },
             "medium": {
                 "capitalization": "normal",
                 "punctuation_style": "normal",
-                "emoji_usage": "subtle",
-                "emoji_set": ["👍", "✨"],
                 "punctuation_marks": [".", "!"],
-                "text_modifiers": []
+                "text_emphasis": "none"
             },
             "intense": {
                 "capitalization": "normal",
-                "punctuation_style": "normal",
-                "emoji_usage": "moderate",
-                "emoji_set": ["💫", "⭐", "🌟"],
+                "punctuation_style": "slight",
+                "punctuation_marks": ["!", "."],
+                "text_emphasis": "minimal"
+            }
+        },
+        EmotionCategory.EXCITED: {
+            "subtle": {
+                "capitalization": "emphasis",
+                "punctuation_style": "enthusiastic",
                 "punctuation_marks": ["!", "!!"],
-                "text_modifiers": ["*"]
+                "text_emphasis": "moderate"
+            },
+            "medium": {
+                "capitalization": "emphasis",
+                "punctuation_style": "very_enthusiastic",
+                "punctuation_marks": ["!!", "!!!"],
+                "text_emphasis": "strong"
+            },
+            "intense": {
+                "capitalization": "upper",
+                "punctuation_style": "extremely_enthusiastic",
+                "punctuation_marks": ["!!!", "!!!!"],
+                "text_emphasis": "very_strong"
+            }
+        },
+        EmotionCategory.CONTEMPLATIVE: {
+            "subtle": {
+                "capitalization": "normal",
+                "punctuation_style": "thoughtful",
+                "punctuation_marks": [".", "..."],
+                "text_emphasis": "none"
+            },
+            "medium": {
+                "capitalization": "normal",
+                "punctuation_style": "reflective",
+                "punctuation_marks": ["...", "?"],
+                "text_emphasis": "minimal"
+            },
+            "intense": {
+                "capitalization": "normal",
+                "punctuation_style": "deeply_reflective",
+                "punctuation_marks": ["...", "...?"],
+                "text_emphasis": "minimal"
             }
         }
     }
-    
+
     @classmethod
     def get_style_template(
         cls,
@@ -226,7 +208,7 @@ class EmotionStyleMap:
             emotion,
             cls.STYLE_TEMPLATES[EmotionCategory.NEUTRAL]
         )
-        
+
         return emotion_styles.get(
             intensity.value,
             emotion_styles["medium"]
@@ -235,38 +217,32 @@ class EmotionStyleMap:
 
 class CaptionStyler:
     """
-    Transforms plain captions into emotionally-styled text.
+    Transforms plain captions into emotionally-formatted text.
     """
-    
+
     def __init__(
         self,
         default_intensity: StyleIntensity = StyleIntensity.MEDIUM,
         default_platform: Platform = Platform.GENERAL,
         custom_style_map: Optional[Dict] = None,
-        enable_emoji: bool = True,
-        enable_effects: bool = True,
         random_seed: Optional[int] = None
     ):
         """
         Initialize the caption styler.
-        
+
         Args:
-            default_intensity: Default styling intensity
+            default_intensity: Default formatting intensity
             default_platform: Default target platform
             custom_style_map: Custom emotion-to-style mappings
-            enable_emoji: Whether to include emoji in styling
-            enable_effects: Whether to suggest visual effects
-            random_seed: Random seed for consistent styling
+            random_seed: Random seed for consistent formatting
         """
         self.default_intensity = default_intensity
         self.default_platform = default_platform
         self.custom_style_map = custom_style_map or {}
-        self.enable_emoji = enable_emoji
-        self.enable_effects = enable_effects
-        
+
         if random_seed:
             random.seed(random_seed)
-    
+
     def style_caption(
         self,
         text: str,
@@ -276,70 +252,52 @@ class CaptionStyler:
         platform: Optional[Platform] = None
     ) -> Dict[str, Any]:
         """
-        Apply emotional styling to caption text.
-        
+        Apply emotional formatting to caption text.
+
         Args:
             text: Original caption text
             emotion: Detected emotion
             confidence: Emotion detection confidence
-            intensity: Style intensity (uses default if None)
+            intensity: Formatting intensity (uses default if None)
             platform: Target platform (uses default if None)
-            
+
         Returns:
-            Dictionary with styled text and metadata
+            Dictionary with formatted text and metadata
         """
         intensity = intensity or self.default_intensity
         platform = platform or self.default_platform
-        
+
         # Get style template
         style_template = EmotionStyleMap.get_style_template(emotion, intensity)
-        
+
         # Apply text transformations
-        styled_text = self._apply_text_transformations(
+        formatted_text = self._apply_text_transformations(
             text,
             style_template,
             confidence
         )
-        
-        # Add emoji if enabled
-        if self.enable_emoji and style_template["emoji_usage"] != "none":
-            styled_text = self._add_emoji(
-                styled_text,
-                style_template,
-                confidence
-            )
-        
+
         # Apply platform-specific adjustments
-        styled_text = self._apply_platform_style(
-            styled_text,
+        formatted_text = self._apply_platform_style(
+            formatted_text,
             platform,
             emotion
         )
-        
-        # Generate visual suggestions
-        visual_suggestions = {}
-        if self.enable_effects:
-            visual_suggestions = self._generate_visual_suggestions(
-                emotion,
-                intensity,
-                platform
-            )
-        
+
         return {
             "original_text": text,
-            "styled_text": styled_text,
+            "formatted_text": formatted_text,
             "emotion": emotion.value,
             "confidence": confidence,
             "intensity": intensity.value,
             "platform": platform.value,
-            "visual_suggestions": visual_suggestions,
-            "style_metadata": {
+            "formatting_metadata": {
                 "capitalization": style_template["capitalization"],
                 "punctuation_style": style_template["punctuation_style"],
-                "emoji_usage": style_template["emoji_usage"]
+                "text_emphasis": style_template.get("text_emphasis", "none")
             }
         }
-    
+
     def _apply_text_transformations(
         self,
         text: str,
@@ -353,7 +311,7 @@ class CaptionStyler:
             style_template["capitalization"],
             confidence
         )
-        
+
         # Apply punctuation style
         text = self._apply_punctuation(
             text,
@@ -361,17 +319,18 @@ class CaptionStyler:
             style_template["punctuation_marks"],
             confidence
         )
-        
-        # Apply text modifiers (asterisks, tildes, etc.)
-        if style_template["text_modifiers"]:
-            text = self._apply_modifiers(
+
+        # Apply text emphasis
+        text_emphasis = style_template.get("text_emphasis", "none")
+        if text_emphasis != "none":
+            text = self._apply_emphasis(
                 text,
-                style_template["text_modifiers"],
+                text_emphasis,
                 confidence
             )
-        
+
         return text
-    
+
     def _apply_capitalization(
         self,
         text: str,
@@ -389,14 +348,14 @@ class CaptionStyler:
             # Capitalize important words
             words = text.split()
             emphasized = []
-            
+
             for word in words:
                 # Emphasize words longer than 4 characters
                 if len(word) > 4 and confidence > 0.7:
                     emphasized.append(word.upper())
                 else:
                     emphasized.append(word)
-            
+
             return " ".join(emphasized)
         elif style == "mixed":
             # Random mixed case for sarcasm
@@ -410,9 +369,9 @@ class CaptionStyler:
                 else:
                     result += char
             return result
-        
+
         return text
-    
+
     def _apply_punctuation(
         self,
         text: str,
@@ -423,10 +382,10 @@ class CaptionStyler:
         """Apply punctuation style to text."""
         if not punctuation_marks:
             return text
-        
+
         # Remove existing ending punctuation
         text = re.sub(r'[.!?]+$', '', text.strip())
-        
+
         if style == "minimal":
             # Use minimal punctuation
             if confidence > 0.8:
@@ -446,70 +405,77 @@ class CaptionStyler:
         elif style == "excessive":
             # Use most dramatic punctuation
             return text + punctuation_marks[-1]
-        
+
         return text
-    
-    def _apply_modifiers(
+
+    def _apply_emphasis(
         self,
         text: str,
-        modifiers: List[str],
+        emphasis_type: str,
         confidence: float
     ) -> str:
-        """Apply text modifiers like asterisks or tildes."""
-        if not modifiers or confidence < 0.6:
+        """Apply text emphasis through capitalization patterns."""
+        if confidence < 0.6:
             return text
-        
-        modifier = modifiers[0]
-        
-        # Apply modifier to emphasized words
+
         words = text.split()
-        modified_words = []
-        
-        for word in words:
-            # Emphasize longer or important words
-            if len(word) > 5 or word.isupper():
-                modified_words.append(f"{modifier}{word}{modifier}")
-            else:
-                modified_words.append(word)
-        
-        return " ".join(modified_words)
-    
-    def _add_emoji(
-        self,
-        text: str,
-        style_template: Dict[str, Any],
-        confidence: float
-    ) -> str:
-        """Add appropriate emoji to styled text."""
-        emoji_set = style_template.get("emoji_set", [])
-        if not emoji_set:
-            return text
-        
-        emoji_usage = style_template["emoji_usage"]
-        
-        if emoji_usage == "subtle":
-            # Add one emoji at the end
-            if confidence > 0.7 and random.random() < 0.8:
-                emoji = random.choice(emoji_set)
-                return f"{text} {emoji}"
-        elif emoji_usage == "moderate":
-            # Add emoji at beginning and/or end
-            if confidence > 0.6:
-                if random.random() < 0.5:
-                    emoji = random.choice(emoji_set)
-                    return f"{emoji} {text}"
+        emphasized_words = []
+
+        if emphasis_type == "moderate":
+            # Capitalize important words (longer than 4 chars)
+            for word in words:
+                if len(word) > 4 and not word.startswith("'"):
+                    emphasized_words.append(word.upper())
                 else:
-                    emoji = random.choice(emoji_set)
-                    return f"{text} {emoji}"
-        elif emoji_usage == "heavy":
-            # Add multiple emoji
-            if confidence > 0.5:
-                emoji1 = random.choice(emoji_set)
-                emoji2 = random.choice(emoji_set)
-                return f"{emoji1} {text} {emoji2}"
-        
-        return text
-    
+                    emphasized_words.append(word)
+
+        elif emphasis_type == "strong":
+            # Capitalize most words
+            for word in words:
+                if len(word) > 2 and not word.startswith("'"):
+                    emphasized_words.append(word.upper())
+                else:
+                    emphasized_words.append(word)
+
+        elif emphasis_type == "very_strong":
+            # Capitalize everything
+            return text.upper()
+
+        elif emphasis_type in ["subtle_ironic", "ironic", "strong_ironic"]:
+            # Apply sarcastic capitalization patterns
+            for i, word in enumerate(words):
+                if emphasis_type == "subtle_ironic" and i % 3 == 0:
+                    emphasized_words.append(word.upper())
+                elif emphasis_type == "ironic" and random.random() < 0.5:
+                    emphasized_words.append(word.upper())
+                elif emphasis_type == "strong_ironic":
+                    # Alternate casing within words
+                    new_word = ""
+                    for j, char in enumerate(word):
+                        if char.isalpha() and j % 2 == 0:
+                            new_word += char.upper()
+                        else:
+                            new_word += char.lower()
+                    emphasized_words.append(new_word)
+                else:
+                    emphasized_words.append(word)
+
+        elif emphasis_type == "nervous":
+            # Subtle stuttering effect on some words
+            for word in words:
+                if len(word) > 3 and random.random() < 0.2:
+                    # Repeat first letter
+                    emphasized_words.append(f"{word[0]}-{word}")
+                else:
+                    emphasized_words.append(word)
+
+        else:
+            return text
+
+        return " ".join(emphasized_words)
+
+
+
     def _apply_platform_style(
         self,
         text: str,
@@ -522,375 +488,25 @@ class CaptionStyler:
             if len(text) > 100:
                 # Truncate and add ellipsis
                 text = text[:97] + "..."
-            
+
             # Add trending indicators for certain emotions
             if emotion in [EmotionCategory.EXCITED, EmotionCategory.HAPPY]:
                 if random.random() < 0.3:
                     text = "POV: " + text
-        
+
         elif platform == Platform.INSTAGRAM:
             # Instagram allows slightly longer captions
             if len(text) > 125:
                 text = text[:122] + "..."
-        
+
         elif platform == Platform.YOUTUBE_SHORTS:
             # YouTube Shorts can have longer captions
             if len(text) > 150:
                 text = text[:147] + "..."
-        
+
         return text
-    
-    def _generate_visual_suggestions(
-        self,
-        emotion: EmotionCategory,
-        intensity: StyleIntensity,
-        platform: Platform
-    ) -> Dict[str, Any]:
-        """Generate visual effect suggestions based on emotion."""
-        suggestions = {
-            "text_animation": [],
-            "color_scheme": {},
-            "font_style": "",
-            "effects": [],
-            "timing_adjustments": {}
-        }
-        
-        # Define visual mappings
-        emotion_visuals = {
-            EmotionCategory.HAPPY: {
-                "text_animation": ["bounce", "pop", "sparkle"],
-                "color_scheme": {
-                    "primary": "#FFD700",  # Gold
-                    "secondary": "#FF69B4",  # Hot pink
-                    "background": "#FFF8DC"  # Cornsilk
-                },
-                "font_style": "rounded, playful",
-                "effects": ["confetti", "stars", "rainbow"],
-                "timing_adjustments": {
-                    "appear_speed": "fast",
-                    "emphasis_delay": 0.2
-                }
-            },
-            EmotionCategory.SAD: {
-                "text_animation": ["fade", "drip", "fall"],
-                "color_scheme": {
-                    "primary": "#4682B4",  # Steel blue
-                    "secondary": "#708090",  # Slate gray
-                    "background": "#F0F8FF"  # Alice blue
-                },
-                "font_style": "thin, delicate",
-                "effects": ["rain", "blur", "desaturate"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.5
-                }
-            },
-            EmotionCategory.ANGRY: {
-                "text_animation": ["shake", "slam", "fire"],
-                "color_scheme": {
-                    "primary": "#DC143C",  # Crimson
-                    "secondary": "#8B0000",  # Dark red
-                    "background": "#2F0000"  # Very dark red
-                },
-                "font_style": "bold, aggressive",
-                "effects": ["shake", "fire", "lightning"],
-                "timing_adjustments": {
-                    "appear_speed": "instant",
-                    "emphasis_delay": 0.1
-                }
-            },
-            EmotionCategory.SARCASTIC: {
-                "text_animation": ["tilt", "wave", "flip"],
-                "color_scheme": {
-                    "primary": "#9370DB",  # Medium purple
-                    "secondary": "#FF1493",  # Deep pink
-                    "background": "#E6E6FA"  # Lavender
-                },
-                "font_style": "italic, quirky",
-                "effects": ["wink", "eye_roll", "air_quotes"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.3
-                }
-            },
-            EmotionCategory.NEUTRAL: {
-                "text_animation": ["fade", "slide", "appear"],
-                "color_scheme": {
-                    "primary": "#333333",  # Dark gray
-                    "secondary": "#666666",  # Medium gray
-                    "background": "#FFFFFF"  # White
-                },
-                "font_style": "regular, clean",
-                "effects": ["simple", "clean", "minimal"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.4
-                }
-            },
-            EmotionCategory.FEARFUL: {
-                "text_animation": ["tremble", "shake", "flicker"],
-                "color_scheme": {
-                    "primary": "#483D8B",  # Dark slate blue
-                    "secondary": "#191970",  # Midnight blue
-                    "background": "#F0F8FF"  # Alice blue
-                },
-                "font_style": "thin, shaky",
-                "effects": ["shadow", "dark", "pulse"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.6
-                }
-            },
-            EmotionCategory.SURPRISED: {
-                "text_animation": ["pop", "bounce", "expand"],
-                "color_scheme": {
-                    "primary": "#FF69B4",  # Hot pink
-                    "secondary": "#FFD700",  # Gold
-                    "background": "#FFFAF0"  # Floral white
-                },
-                "font_style": "bold, expanded",
-                "effects": ["burst", "sparkle", "zoom"],
-                "timing_adjustments": {
-                    "appear_speed": "instant",
-                    "emphasis_delay": 0.1
-                }
-            },
-            EmotionCategory.DISGUSTED: {
-                "text_animation": ["wobble", "distort", "squeeze"],
-                "color_scheme": {
-                    "primary": "#556B2F",  # Dark olive green
-                    "secondary": "#8B4513",  # Saddle brown
-                    "background": "#F5F5DC"  # Beige
-                },
-                "font_style": "distorted, wavy",
-                "effects": ["distort", "blur", "wave"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.4
-                }
-            },
-            EmotionCategory.EXCITED: {
-                "text_animation": ["bounce", "vibrate", "sparkle"],
-                "color_scheme": {
-                    "primary": "#FF4500",  # Orange red
-                    "secondary": "#FFA500",  # Orange
-                    "background": "#FFF8DC"  # Cornsilk
-                },
-                "font_style": "bold, energetic",
-                "effects": ["electricity", "stars", "fireworks"],
-                "timing_adjustments": {
-                    "appear_speed": "fast",
-                    "emphasis_delay": 0.1
-                }
-            },
-            EmotionCategory.MELANCHOLIC: {
-                "text_animation": ["fade", "drift", "dissolve"],
-                "color_scheme": {
-                    "primary": "#4B0082",  # Indigo
-                    "secondary": "#483D8B",  # Dark slate blue
-                    "background": "#E6E6FA"  # Lavender
-                },
-                "font_style": "light, flowing",
-                "effects": ["mist", "fade", "soft"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.7
-                }
-            },
-            EmotionCategory.ANXIOUS: {
-                "text_animation": ["jitter", "shake", "pulse"],
-                "color_scheme": {
-                    "primary": "#8B0000",  # Dark red
-                    "secondary": "#B22222",  # Fire brick
-                    "background": "#FFE4E1"  # Misty rose
-                },
-                "font_style": "tight, condensed",
-                "effects": ["pulse", "shake", "glitch"],
-                "timing_adjustments": {
-                    "appear_speed": "fast",
-                    "emphasis_delay": 0.2
-                }
-            },
-            EmotionCategory.CONFIDENT: {
-                "text_animation": ["slide", "bold", "strong"],
-                "color_scheme": {
-                    "primary": "#000080",  # Navy
-                    "secondary": "#4169E1",  # Royal blue
-                    "background": "#F0FFFF"  # Azure
-                },
-                "font_style": "bold, strong",
-                "effects": ["shine", "glow", "solid"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.3
-                }
-            },
-            EmotionCategory.CONFUSED: {
-                "text_animation": ["wobble", "tilt", "spin"],
-                "color_scheme": {
-                    "primary": "#696969",  # Dim gray
-                    "secondary": "#A9A9A9",  # Dark gray
-                    "background": "#F5F5F5"  # White smoke
-                },
-                "font_style": "irregular, mixed",
-                "effects": ["question", "swirl", "dizzy"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.5
-                }
-            },
-            EmotionCategory.MOTIVATIONAL: {
-                "text_animation": ["rise", "strong", "impact"],
-                "color_scheme": {
-                    "primary": "#FF6347",  # Tomato
-                    "secondary": "#FF8C00",  # Dark orange
-                    "background": "#FFFACD"  # Lemon chiffon
-                },
-                "font_style": "bold, impactful",
-                "effects": ["power", "rise", "impact"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.3
-                }
-            },
-            EmotionCategory.HUMOROUS: {
-                "text_animation": ["bounce", "wiggle", "playful"],
-                "color_scheme": {
-                    "primary": "#FF1493",  # Deep pink
-                    "secondary": "#00CED1",  # Dark turquoise
-                    "background": "#F0E68C"  # Khaki
-                },
-                "font_style": "playful, rounded",
-                "effects": ["bounce", "wiggle", "comic"],
-                "timing_adjustments": {
-                    "appear_speed": "fast",
-                    "emphasis_delay": 0.2
-                }
-            },
-            EmotionCategory.DRAMATIC: {
-                "text_animation": ["slam", "dramatic", "sweep"],
-                "color_scheme": {
-                    "primary": "#8B008B",  # Dark magenta
-                    "secondary": "#4B0082",  # Indigo
-                    "background": "#2F2F4F"  # Midnight blue
-                },
-                "font_style": "dramatic, serif",
-                "effects": ["spotlight", "dramatic", "sweep"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.5
-                }
-            },
-            EmotionCategory.CASUAL: {
-                "text_animation": ["slide", "easy", "smooth"],
-                "color_scheme": {
-                    "primary": "#708090",  # Slate gray
-                    "secondary": "#778899",  # Light slate gray
-                    "background": "#F8F8FF"  # Ghost white
-                },
-                "font_style": "casual, relaxed",
-                "effects": ["smooth", "easy", "light"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.4
-                }
-            },
-            EmotionCategory.PROFESSIONAL: {
-                "text_animation": ["fade", "clean", "precise"],
-                "color_scheme": {
-                    "primary": "#2F4F4F",  # Dark slate gray
-                    "secondary": "#000080",  # Navy
-                    "background": "#FFFFFF"  # White
-                },
-                "font_style": "professional, serif",
-                "effects": ["clean", "minimal", "professional"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.3
-                }
-            },
-            EmotionCategory.ROMANTIC: {
-                "text_animation": ["float", "soft", "heart"],
-                "color_scheme": {
-                    "primary": "#C71585",  # Medium violet red
-                    "secondary": "#FF69B4",  # Hot pink
-                    "background": "#FFE4E1"  # Misty rose
-                },
-                "font_style": "elegant, flowing",
-                "effects": ["hearts", "soft", "glow"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.6
-                }
-            },
-            EmotionCategory.NOSTALGIC: {
-                "text_animation": ["fade", "vintage", "soft"],
-                "color_scheme": {
-                    "primary": "#8B4513",  # Saddle brown
-                    "secondary": "#DEB887",  # Burlywood
-                    "background": "#FDF5E6"  # Old lace
-                },
-                "font_style": "vintage, serif",
-                "effects": ["sepia", "vintage", "soft"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.7
-                }
-            },
-            EmotionCategory.IRONIC: {
-                "text_animation": ["tilt", "reverse", "twist"],
-                "color_scheme": {
-                    "primary": "#483D8B",  # Dark slate blue
-                    "secondary": "#6A5ACD",  # Slate blue
-                    "background": "#F8F8FF"  # Ghost white
-                },
-                "font_style": "italic, contrasting",
-                "effects": ["reverse", "twist", "ironic"],
-                "timing_adjustments": {
-                    "appear_speed": "medium",
-                    "emphasis_delay": 0.4
-                }
-            },
-            EmotionCategory.CONTEMPLATIVE: {
-                "text_animation": ["fade", "gentle", "thoughtful"],
-                "color_scheme": {
-                    "primary": "#4682B4",  # Steel blue
-                    "secondary": "#5F9EA0",  # Cadet blue
-                    "background": "#F0FFFF"  # Azure
-                },
-                "font_style": "thoughtful, light",
-                "effects": ["gentle", "thoughtful", "calm"],
-                "timing_adjustments": {
-                    "appear_speed": "slow",
-                    "emphasis_delay": 0.6
-                }
-            }
-        }
-        
-        # Get emotion-specific visuals
-        visuals = emotion_visuals.get(emotion, emotion_visuals[EmotionCategory.NEUTRAL])
-        
-        # Adjust based on intensity
-        if intensity == StyleIntensity.SUBTLE:
-            # Use fewer effects
-            suggestions["text_animation"] = [visuals["text_animation"][0]]
-            suggestions["effects"] = visuals["effects"][:1]
-        elif intensity == StyleIntensity.MEDIUM:
-            # Use moderate effects
-            suggestions["text_animation"] = visuals["text_animation"][:2]
-            suggestions["effects"] = visuals["effects"][:2]
-        elif intensity == StyleIntensity.INTENSE:
-            # Use all effects
-            suggestions["text_animation"] = visuals["text_animation"]
-            suggestions["effects"] = visuals["effects"]
-        
-        # Copy other suggestions
-        suggestions["color_scheme"] = visuals["color_scheme"]
-        suggestions["font_style"] = visuals["font_style"]
-        suggestions["timing_adjustments"] = visuals["timing_adjustments"]
-        
-        return suggestions
-    
+
+
     def style_segment_batch(
         self,
         segments: List[Dict[str, Any]],
@@ -900,18 +516,18 @@ class CaptionStyler:
     ) -> List[Dict[str, Any]]:
         """
         Style multiple caption segments based on temporal emotions.
-        
+
         Args:
             segments: List of caption segments with text and timing
             emotion_result: Complete emotion detection result
             intensity: Style intensity override
             platform: Target platform override
-            
+
         Returns:
             List of styled segments
         """
         styled_segments = []
-        
+
         for segment in segments:
             # Find emotion at this timestamp
             timestamp = segment.get("start", 0)
@@ -919,27 +535,30 @@ class CaptionStyler:
                 timestamp,
                 emotion_result.temporal_emotions
             )
-            
-            # Style the segment text
-            styled = self.style_caption(
+
+            # Format the segment text
+            formatted = self.style_caption(
                 segment["text"],
                 segment_emotion["emotion"],
                 segment_emotion["confidence"],
                 intensity,
                 platform
             )
-            
+
             # Merge with original segment data
-            styled_segment = {
+            formatted_segment = {
                 **segment,
-                **styled,
+                "original_text": segment["text"],
+                "text": formatted["formatted_text"],
+                "emotion": formatted["emotion"],
+                "confidence": formatted["confidence"],
                 "timestamp": timestamp
             }
             
-            styled_segments.append(styled_segment)
-        
+            styled_segments.append(formatted_segment)
+
         return styled_segments
-    
+
     def _find_emotion_at_timestamp(
         self,
         timestamp: float,
@@ -962,13 +581,13 @@ class CaptionStyler:
                     "emotion": EmotionCategory.NEUTRAL,
                     "confidence": temporal["confidence"]
                 }
-        
+
         # Default to neutral if not found
         return {
             "emotion": EmotionCategory.NEUTRAL,
             "confidence": 0.5
         }
-    
+
     def generate_style_variations(
         self,
         text: str,
@@ -978,27 +597,27 @@ class CaptionStyler:
     ) -> List[Dict[str, Any]]:
         """
         Generate multiple style variations for A/B testing.
-        
+
         Args:
             text: Original caption text
             emotion: Detected emotion
             confidence: Emotion confidence
             num_variations: Number of variations to generate
-            
+
         Returns:
             List of style variations
         """
         variations = []
         intensities = list(StyleIntensity)
-        
+
         for i in range(num_variations):
             # Vary intensity
             intensity = intensities[i % len(intensities)]
-            
+
             # Vary platform
             platforms = list(Platform)
             platform = platforms[(i + 1) % len(platforms)]
-            
+
             # Generate variation
             variation = self.style_caption(
                 text,
@@ -1007,8 +626,8 @@ class CaptionStyler:
                 intensity,
                 platform
             )
-            
+
             variation["variation_id"] = i + 1
             variations.append(variation)
-        
+
         return variations

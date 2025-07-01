@@ -1,8 +1,11 @@
 """
 OpenCV-based caption renderer for emotion-styled video captions.
 
-This module provides a more reliable alternative to MoviePy's TextClip
-by using OpenCV for text rendering, avoiding ImageMagick dependencies.
+This module provides a fallback renderer when ffmpeg or ASS subtitle support
+is not available. It renders captions directly onto video frames using OpenCV.
+
+Note: For production use, the ASS subtitle approach with ffmpeg is recommended
+for better performance and styling capabilities.
 """
 
 import os
@@ -36,7 +39,14 @@ class RenderedCaption:
 
 class OpenCVRenderer:
     """
-    Renders emotion-styled captions directly onto video frames using OpenCV.
+    Fallback renderer for emotion-styled captions using OpenCV.
+    
+    This renderer directly draws text onto video frames and is useful when:
+    - ffmpeg is not available
+    - ASS subtitle support is not available
+    - Quick preview generation is needed
+    
+    For production use, prefer the ASS subtitle approach with VideoMerger.
     """
 
     # OpenCV font mappings
@@ -118,7 +128,10 @@ class OpenCVRenderer:
         preview_mode: bool = False
     ) -> str:
         """
-        Render captions directly onto video frames.
+        Render captions directly onto video frames (fallback method).
+
+        This method is a fallback when ffmpeg/ASS subtitle burning is not available.
+        It processes video frame by frame, which is slower but more compatible.
 
         Args:
             video_path: Path to input video
@@ -129,6 +142,10 @@ class OpenCVRenderer:
 
         Returns:
             Path to output video
+        
+        Note:
+            This method does not preserve audio. Use add_audio_from_original()
+            to copy audio from the source video.
         """
         # Load caption data
         if isinstance(caption_data, str):
@@ -152,7 +169,6 @@ class OpenCVRenderer:
 
         # Prepare captions for rendering
         rendered_captions = self._prepare_captions(
-
             captions.get("segments", []),
             fps,
             width,
@@ -238,9 +254,12 @@ class OpenCVRenderer:
             y_offset = self.platform_settings["position_y_offset"]
             position = (width // 2, int(height * y_offset))
             
-            # Get animation
+            # Get animation (simplified for fallback renderer)
             animations = visual_suggestions.get("text_animation", ["fade"])
             primary_animation = animations[0] if animations else "fade"
+            # Limit animations for performance in fallback mode
+            if primary_animation not in ["fade", "slide", "none"]:
+                primary_animation = "fade"
             
             # Split text into lines if too long
             text = segment.get("text", "")
@@ -443,8 +462,29 @@ class OpenCVRenderer:
         rendered_video: str,
         output_path: str
     ) -> str:
-        """Copy audio from original video to rendered video."""
+        """
+        Copy audio from original video to rendered video.
+        
+        This is essential when using the OpenCV fallback renderer since
+        it doesn't preserve audio during frame processing.
+        
+        Args:
+            original_video: Path to original video with audio
+            rendered_video: Path to rendered video without audio
+            output_path: Path for final output with audio
+            
+        Returns:
+            Path to output video (rendered_video if audio copy fails)
+        """
         import subprocess
+        
+        # Check if ffmpeg is available
+        try:
+            subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            if self.verbose:
+                print("Warning: ffmpeg not available, output will have no audio")
+            return rendered_video
         
         # Use ffmpeg to copy audio
         cmd = [
@@ -469,4 +509,5 @@ class OpenCVRenderer:
         except subprocess.CalledProcessError as e:
             if self.verbose:
                 print(f"Error copying audio: {e}")
+                print("Output video will not have audio")
             return rendered_video

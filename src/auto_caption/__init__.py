@@ -15,6 +15,7 @@ from .models import WhisperModel, get_available_models
 from .emotion_detector import EmotionDetector, EmotionCategory, EmotionScore, EmotionDetectionResult
 from .caption_styler import CaptionStyler, StyleIntensity, Platform, EmotionStyleMap
 from .video_merger import VideoMerger
+from .subtitle import ASSGenerator, ASSStyle
 
 __all__ = [
     "CaptionGenerator",
@@ -31,6 +32,8 @@ __all__ = [
     "Platform",
     "EmotionStyleMap",
     "VideoMerger",
+    "ASSGenerator",
+    "ASSStyle",
     "__version__",
     "__author__",
     "__email__",

@@ -28,6 +28,8 @@ import librosa
 import soundfile as sf
 from moviepy.editor import VideoFileClip
 from tqdm import tqdm
+from collections import deque
+from PIL import Image
 
 
 class EmotionCategory(Enum):
@@ -114,8 +116,8 @@ class EmotionDetector:
         visual_model: Optional[str] = "dima806/facial_emotions_image_detection",
         audio_model: Optional[str] = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition",
         device: Optional[str] = None,
-        visual_weight: float = 0.6,
-        audio_weight: float = 0.4,
+        visual_weight: float = 0.85,
+        audio_weight: float = 0.15,
         confidence_threshold: float = 0.7,
         verbose: bool = False
     ):
@@ -139,6 +141,11 @@ class EmotionDetector:
         self.confidence_threshold = confidence_threshold
         self.verbose = verbose
         
+        # Face tracking state
+        self._face_tracker = None
+        self._tracked_faces = []
+        self._face_net = None  # DNN face detector
+        
         # Initialize models
         self._init_models()
         
@@ -147,7 +154,7 @@ class EmotionDetector:
         if self.verbose:
             print(f"Initializing emotion detection models on {self.device}...")
         
-        # Initialize visual emotion detection
+        # Initialize visual emotion detection - primary method
         if self.visual_model_name:
             try:
                 self.visual_pipeline = pipeline(
@@ -155,13 +162,16 @@ class EmotionDetector:
                     model=self.visual_model_name,
                     device=0 if self.device == "cuda" else -1
                 )
+                if self.verbose:
+                    print("Face emotion detection model loaded successfully")
             except Exception as e:
                 print(f"Warning: Could not load visual model: {e}")
+                print("Face-based emotion detection is highly recommended for accurate results")
                 self.visual_pipeline = None
         else:
             self.visual_pipeline = None
         
-        # Initialize audio emotion detection
+        # Initialize audio emotion detection - supplementary method
         if self.audio_model_name:
             try:
                 self.audio_pipeline = pipeline(
@@ -169,20 +179,28 @@ class EmotionDetector:
                     model=self.audio_model_name,
                     device=0 if self.device == "cuda" else -1
                 )
+                if self.verbose:
+                    print("Audio emotion detection loaded as supplementary method")
             except Exception as e:
-                print(f"Warning: Could not load audio model: {e}")
+                if self.verbose:
+                    print(f"Info: Audio model not loaded: {e}")
+                    print("Continuing with face-based detection only")
                 self.audio_pipeline = None
         else:
             self.audio_pipeline = None
         
         if self.verbose:
             print("Models initialized successfully")
+            if self.visual_pipeline:
+                print("✓ Face-based emotion detection ready (primary method)")
+            if self.audio_pipeline:
+                print("✓ Audio emotion detection ready (supplementary)")
     
     def detect_emotions(
         self,
         video_path: str,
         sample_rate: int = 16000,
-        frame_sample_interval: float = 1.0,
+        frame_sample_interval: float = 0.5,
         progress_callback: Optional[callable] = None
     ) -> EmotionDetectionResult:
         """
@@ -248,7 +266,7 @@ class EmotionDetector:
         frame_skip = int(fps * frame_interval)
         
         if self.verbose:
-            print(f"Analyzing visual emotions (sampling every {frame_interval}s)...")
+            print(f"Analyzing facial expressions (sampling every {frame_interval}s for accurate emotion tracking)...")
         
         frame_count = 0
         processed_frames = 0
@@ -263,16 +281,38 @@ class EmotionDetector:
                     # Convert frame to RGB
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     
-                    # Detect faces in frame
+                    # Detect faces in frame - prioritize face detection for emotion accuracy
                     faces = self._detect_faces(frame_rgb)
                     
                     if faces:
-                        # Analyze emotion for the most prominent face
-                        emotion_result = self._analyze_face_emotion(faces[0])
-                        if emotion_result:
-                            emotion_result.timestamp = frame_count / fps
-                            emotion_result.modality = "visual"
-                            visual_emotions.append(emotion_result)
+                        # Analyze emotions for detected faces (prioritize largest/most prominent)
+                        face_emotions = []
+                        for i, face in enumerate(faces[:3]):  # Analyze up to 3 faces
+                            emotion_result = self._analyze_face_emotion(face)
+                            if emotion_result:
+                                # Weight by face prominence (first face = most prominent)
+                                prominence_weight = 1.0 / (i + 1)
+                                emotion_result.confidence *= prominence_weight
+                                face_emotions.append(emotion_result)
+                        
+                        # Use the highest confidence emotion
+                        if face_emotions:
+                            best_emotion = max(face_emotions, key=lambda e: e.confidence)
+                            best_emotion.timestamp = frame_count / fps
+                            best_emotion.modality = "visual"
+                            visual_emotions.append(best_emotion)
+                    else:
+                        # No face detected - use previous emotion with decaying confidence
+                        if visual_emotions and len(visual_emotions) > 0:
+                            last_emotion = visual_emotions[-1]
+                            if (frame_count / fps - last_emotion.timestamp) < 2.0:  # Within 2 seconds
+                                decayed_emotion = EmotionScore(
+                                    emotion=last_emotion.emotion,
+                                    confidence=last_emotion.confidence * 0.8,  # Decay confidence
+                                    timestamp=frame_count / fps,
+                                    modality="visual"
+                                )
+                                visual_emotions.append(decayed_emotion)
                     
                     processed_frames += 1
                     pbar.update(1)
@@ -287,30 +327,130 @@ class EmotionDetector:
         return visual_emotions
     
     def _detect_faces(self, frame: np.ndarray) -> List[np.ndarray]:
-        """Detect faces in a frame using OpenCV."""
-        # Use OpenCV's face detection
-        face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-        
+        """Detect faces using multiple methods for better accuracy."""
         face_images = []
-        for (x, y, w, h) in faces:
-            face_img = frame[y:y+h, x:x+w]
-            face_images.append(face_img)
+        
+        # Method 1: Try DNN-based face detection (more accurate)
+        try:
+            # Use OpenCV's DNN face detector if available
+            modelFile = "opencv_face_detector_uint8.pb"
+            configFile = "opencv_face_detector.pbtxt"
+            
+            if hasattr(self, '_face_net') and self._face_net is not None:
+                net = self._face_net
+            else:
+                # Try to use pre-trained model if available
+                if os.path.exists(modelFile) and os.path.exists(configFile):
+                    net = cv2.dnn.readNetFromTensorflow(modelFile, configFile)
+                    self._face_net = net
+                else:
+                    net = None
+            
+            if net is not None:
+                blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), 
+                                           [104, 117, 123], False, False)
+                net.setInput(blob)
+                detections = net.forward()
+                
+                h, w = frame.shape[:2]
+                for i in range(detections.shape[2]):
+                    confidence = detections[0, 0, i, 2]
+                    if confidence > 0.7:  # Higher confidence threshold
+                        x1 = int(detections[0, 0, i, 3] * w)
+                        y1 = int(detections[0, 0, i, 4] * h)
+                        x2 = int(detections[0, 0, i, 5] * w)
+                        y2 = int(detections[0, 0, i, 6] * h)
+                        
+                        # Ensure coordinates are within bounds
+                        x1 = max(0, min(x1, w-1))
+                        y1 = max(0, min(y1, h-1))
+                        x2 = max(0, min(x2, w-1))
+                        y2 = max(0, min(y2, h-1))
+                        
+                        if x2 > x1 and y2 > y1:
+                            face_img = frame[y1:y2, x1:x2]
+                            if face_img.size > 0:
+                                face_images.append(face_img)
+        except Exception as e:
+            if self.verbose:
+                print(f"DNN face detection not available: {e}")
+        
+        # Method 2: Fallback to Haar Cascade (more compatible)
+        if not face_images:
+            try:
+                # Try multiple cascades for better detection
+                cascade_names = [
+                    'haarcascade_frontalface_default.xml',
+                    'haarcascade_frontalface_alt.xml',
+                    'haarcascade_frontalface_alt2.xml'
+                ]
+                
+                for cascade_name in cascade_names:
+                    face_cascade = cv2.CascadeClassifier(
+                        cv2.data.haarcascades + cascade_name
+                    )
+                    
+                    if not face_cascade.empty():
+                        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+                        # Enhance contrast for better detection
+                        gray = cv2.equalizeHist(gray)
+                        
+                        # Detect at multiple scales
+                        faces = face_cascade.detectMultiScale(
+                            gray, 
+                            scaleFactor=1.05,  # Smaller scale factor for better detection
+                            minNeighbors=3,    # Lower for more detections
+                            minSize=(30, 30),  # Minimum face size
+                            flags=cv2.CASCADE_SCALE_IMAGE
+                        )
+                        
+                        if len(faces) > 0:
+                            # Sort faces by size (larger faces first)
+                            faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                            
+                            for (x, y, w, h) in faces[:3]:  # Limit to top 3 faces
+                                # Add padding around face
+                                padding = int(min(w, h) * 0.1)
+                                x_pad = max(0, x - padding)
+                                y_pad = max(0, y - padding)
+                                w_pad = min(frame.shape[1] - x_pad, w + 2 * padding)
+                                h_pad = min(frame.shape[0] - y_pad, h + 2 * padding)
+                                
+                                face_img = frame[y_pad:y_pad+h_pad, x_pad:x_pad+w_pad]
+                                if face_img.size > 0:
+                                    face_images.append(face_img)
+                            
+                            if face_images:
+                                break
+            except Exception as e:
+                if self.verbose:
+                    print(f"Haar cascade face detection error: {e}")
         
         return face_images
     
     def _analyze_face_emotion(self, face_image: np.ndarray) -> Optional[EmotionScore]:
-        """Analyze emotion in a face image."""
+        """Analyze emotion in a face image with preprocessing."""
         if not self.visual_pipeline:
             return None
         
         try:
+            # Preprocess face image for better emotion detection
+            # Resize to expected input size
+            face_resized = cv2.resize(face_image, (224, 224))
+            
+            # Enhance contrast
+            lab = cv2.cvtColor(face_resized, cv2.COLOR_RGB2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            l = clahe.apply(l)
+            face_enhanced = cv2.merge([l, a, b])
+            face_enhanced = cv2.cvtColor(face_enhanced, cv2.COLOR_LAB2RGB)
+            
+            # Convert numpy array to PIL Image for the pipeline
+            face_pil = Image.fromarray(face_enhanced)
+            
             # Run emotion classification
-            results = self.visual_pipeline(face_image)
+            results = self.visual_pipeline(face_pil)
             
             # Map results to our emotion categories
             emotion_map = {
@@ -372,8 +512,8 @@ class EmotionDetector:
             # Load audio
             audio_data, sr = librosa.load(str(audio_path), sr=sample_rate)
             
-            # Analyze audio in chunks (e.g., 5-second windows)
-            chunk_duration = 5.0  # seconds
+            # Analyze audio in smaller chunks to match visual emotion granularity
+            chunk_duration = 2.0  # seconds - smaller chunks for better synchronization
             chunk_samples = int(chunk_duration * sr)
             total_chunks = len(audio_data) // chunk_samples
             
@@ -444,15 +584,16 @@ class EmotionDetector:
         audio_emotions: List[EmotionScore],
         duration: float
     ) -> EmotionDetectionResult:
-        """Fuse visual and audio emotions using weighted combination."""
+        """Fuse visual and audio emotions with strong preference for facial expressions."""
         # Aggregate emotions by category
         emotion_counts = {}
         emotion_confidences = {}
         
-        # Process visual emotions
+        # Process visual emotions with higher priority
         for score in visual_emotions:
             emotion = score.emotion
-            weight = self.visual_weight * score.confidence
+            # Boost visual weight for more accurate face-based detection
+            weight = self.visual_weight * score.confidence * 1.2
             
             if emotion not in emotion_counts:
                 emotion_counts[emotion] = 0
@@ -461,10 +602,11 @@ class EmotionDetector:
             emotion_counts[emotion] += weight
             emotion_confidences[emotion].append(score.confidence)
         
-        # Process audio emotions
+        # Process audio emotions as supplementary data
         for score in audio_emotions:
             emotion = score.emotion
-            weight = self.audio_weight * score.confidence
+            # Reduce audio influence since facial expressions are more reliable
+            weight = self.audio_weight * score.confidence * 0.8
             
             if emotion not in emotion_counts:
                 emotion_counts[emotion] = 0
@@ -548,8 +690,8 @@ class EmotionDetector:
         # Sort by timestamp
         all_emotions.sort(key=lambda x: x["timestamp"])
         
-        # Create time segments (e.g., every second)
-        segment_duration = 1.0
+        # Create time segments (e.g., every 0.5 seconds for finer emotion tracking)
+        segment_duration = 0.5
         segments = []
         
         for i in range(int(duration / segment_duration)):
