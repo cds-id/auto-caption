@@ -1,0 +1,91 @@
+FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libglib2.0-0 \
+    libgl1-mesa-glx \
+    wget \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy the auto-caption package
+COPY . /workspace/auto-caption/
+
+# Install Jupyter and visualization packages
+RUN pip install --no-cache-dir \
+    jupyter \
+    jupyterlab>=3.0 \
+    ipywidgets>=8.0 \
+    matplotlib>=3.5 \
+    seaborn \
+    pandas \
+    plotly \
+    notebook \
+    nbconvert
+
+# Install auto-caption with its dependencies
+RUN cd /workspace/auto-caption && \
+    pip install --no-cache-dir -e .
+
+# Install additional ML packages for GPU
+RUN pip install --no-cache-dir \
+    torch==2.0.1 \
+    torchvision==0.15.2 \
+    torchaudio==2.0.2 \
+    --index-url https://download.pytorch.org/whl/cu117
+
+# Create directories
+RUN mkdir -p /workspace/notebooks /workspace/data /workspace/outputs
+
+# Copy example notebooks
+RUN cp -r /workspace/auto-caption/examples/jupyter_examples/* /workspace/notebooks/ || true
+
+# Enable Jupyter extensions
+RUN jupyter nbextension enable --py widgetsnbextension --sys-prefix && \
+    jupyter labextension install @jupyter-widgets/jupyterlab-manager || true
+
+# Configure Jupyter
+RUN jupyter notebook --generate-config && \
+    jupyter lab --generate-config
+
+# Create Jupyter config
+RUN echo "c.ServerApp.token = ''" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.password = ''" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.allow_origin = '*'" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.ip = '0.0.0.0'" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.allow_root = True" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.open_browser = False" >> ~/.jupyter/jupyter_lab_config.py
+
+# Set environment variables
+ENV CUDA_VISIBLE_DEVICES=0
+ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6"
+ENV PYTHONUNBUFFERED=1
+ENV JUPYTER_ENABLE_LAB=yes
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+echo "Starting Jupyter Lab with GPU support..."\n\
+echo "CUDA Available: $(python -c "import torch; print(torch.cuda.is_available())")"\n\
+echo "CUDA Device Count: $(python -c "import torch; print(torch.cuda.device_count())")"\n\
+echo "CUDA Device Name: $(python -c "import torch; print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"No GPU\")")"\n\
+echo ""\n\
+echo "Access Jupyter Lab at: http://localhost:8888"\n\
+echo ""\n\
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --notebook-dir=/workspace/notebooks\n\
+' > /start.sh && chmod +x /start.sh
+
+# Expose port
+EXPOSE 8888
+
+# Default command
+CMD ["/start.sh"]

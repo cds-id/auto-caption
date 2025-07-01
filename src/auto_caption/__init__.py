@@ -1,17 +1,35 @@
 """
-Auto-Caption: Automatic video captioning using OpenAI Whisper.
+Auto-Caption: Emotion-aware video captioning for short-form content.
 
-A command-line tool for generating accurate captions/subtitles from video files
-using state-of-the-art speech recognition.
+An AI-powered tool that generates emotionally-intelligent captions for videos
+by combining speech recognition with emotion detection and style adaptation.
 """
 
 __version__ = "0.1.0"
 __author__ = "Auto Caption Team"
-__email__ = "your.email@example.com"
+__email__ = "info@ciptadusa.com"
 
 from .caption_generator import CaptionGenerator
 from .utils import format_timestamp, parse_time
 from .models import WhisperModel, get_available_models
+from .emotion_detector import EmotionDetector, EmotionCategory, EmotionScore, EmotionDetectionResult
+from .caption_styler import CaptionStyler, StyleIntensity, Platform, EmotionStyleMap
+from .video_merger import VideoMerger
+from .subtitle import ASSGenerator, ASSStyle
+from .word_timing import WordTimingProcessor, WordAnimationStyle, WordTiming, WordSegment
+from .object_detection import (
+    ObjectDetector,
+    DetectedObject,
+    ObjectType,
+    DetectionResult,
+    SafeZone,
+    PositionOptimizer,
+    PositionConstraint,
+    OptimizationResult,
+    FaceTracker,
+    TrackedFace,
+    FaceTrackingResult
+)
 
 __all__ = [
     "CaptionGenerator",
@@ -19,6 +37,32 @@ __all__ = [
     "get_available_models",
     "format_timestamp",
     "parse_time",
+    "EmotionDetector",
+    "EmotionCategory",
+    "EmotionScore",
+    "EmotionDetectionResult",
+    "CaptionStyler",
+    "StyleIntensity",
+    "Platform",
+    "EmotionStyleMap",
+    "VideoMerger",
+    "ASSGenerator",
+    "ASSStyle",
+    "WordTimingProcessor",
+    "WordAnimationStyle",
+    "WordTiming",
+    "WordSegment",
+    "ObjectDetector",
+    "DetectedObject",
+    "ObjectType",
+    "DetectionResult",
+    "SafeZone",
+    "PositionOptimizer",
+    "PositionConstraint",
+    "OptimizationResult",
+    "FaceTracker",
+    "TrackedFace",
+    "FaceTrackingResult",
     "__version__",
     "__author__",
     "__email__",

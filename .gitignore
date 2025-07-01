@@ -199,3 +199,4 @@ secrets.json
 # Logs
 logs/
 *.log
+*.json

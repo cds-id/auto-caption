@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  jupyter-auto-caption-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: auto-caption-jupyter-gpu
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount the entire project for development
+      - ./:/workspace/auto-caption:rw
+      # Persistent notebooks directory
+      - ./notebooks:/workspace/notebooks:rw
+      # Mount data directory for videos and outputs
+      - ./data:/workspace/data:rw
+      # Cache directory for models
+      - ./cache:/root/.cache:rw
+    environment:
+      # Jupyter settings
+      - JUPYTER_ENABLE_LAB=yes
+      - GRANT_SUDO=yes
+      # CUDA settings
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      # Auto-caption settings
+      - TORCH_HOME=/root/.cache/torch
+      - HF_HOME=/root/.cache/huggingface
+      # Force CUDA usage
+      - CUDA_LAUNCH_BLOCKING=1
+    restart: unless-stopped
+    # GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    runtime: nvidia
+
+  # GPU-enabled worker for batch processing
+  auto-caption-worker-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: auto-caption-worker-gpu
+    volumes:
+      - ./:/workspace/auto-caption:rw
+      - ./data:/workspace/data:rw
+      - ./cache:/root/.cache:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TORCH_HOME=/root/.cache/torch
+      - HF_HOME=/root/.cache/huggingface
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+    command: ["python", "-m", "auto_caption.cli", "--help"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    runtime: nvidia
+    profiles:
+      - worker
+
+# Create named volumes for persistence
+volumes:
+  notebooks:
+    driver: local
+  data:
+    driver: local
+  cache:
+    driver: local
